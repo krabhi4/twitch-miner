@@ -38,7 +38,8 @@ setuptools.setup(
         "flask",
         "irc",
         "pandas",
-        "pytz"
+        "pytz",
+        "validators"
     ],
     long_description=read("README.md"),
     long_description_content_type="text/markdown",

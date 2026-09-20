@@ -2,8 +2,11 @@ name: GitHub Traffic Count Update Everyday
 
 on:
   schedule:
-    - cron: "0 */24 * * *"
+    - cron: "0 0 * * *"
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -11,13 +14,27 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
-      
+
+      - name: Check secret configuration
+        id: check_secret
+        env:
+          SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
+        run: |
+          if [ -z "$SECRET_TOKEN" ]; then
+            echo "SECRET_TOKEN is not set. Skipping workflow."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: gh login
+        if: steps.check_secret.outputs.skip != 'true'
         env:
           SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
         run: echo "$SECRET_TOKEN" | gh auth login --with-token
 
       - name: parse latest traffic count
+        if: steps.check_secret.outputs.skip != 'true'
         env:
           SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
         run: |
@@ -25,7 +42,9 @@ jobs:
             -H "Accept: application/vnd.github.v3+json" \
             https://api.github.com/repos/${{ github.repository }}/traffic/views \
             > traffic.json
+
       - name: create gist and download previous count
+        if: steps.check_secret.outputs.skip != 'true'
         id: set_id
         env:
           TRAFFIC_ID: ${{ secrets.TRAFFIC_ID }}
@@ -50,11 +69,15 @@ jobs:
               echo "GIST=$traffic_id" >> "$GITHUB_OUTPUT"
               cp traffic.json traffic_before.json
           fi
+
       - name: update traffic.json
+        if: steps.check_secret.outputs.skip != 'true'
         run: |
           curl https://gist.githubusercontent.com/MShawon/d37c49ee4ce03f64b92ab58b0cec289f/raw/traffic.py > traffic.py
           python3 traffic.py
+
       - name: Update gist with latest count
+        if: steps.check_secret.outputs.skip != 'true'
         env:
           SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
         run: |
@@ -64,6 +87,7 @@ jobs:
             --user "${{ github.actor }}:$SECRET_TOKEN" \
             -H "Content-Type: application/json" \
             -d @post_traffic.json "https://api.github.com/gists/${{ steps.set_id.outputs.GIST }}" > /dev/null 2>&1
+
           if [ ! -f TRAFFIC.md ]; then
             shields="https://img.shields.io/badge/dynamic/json?color=success&label=Views&query=count&url="
             url="https://gist.githubusercontent.com/${{ github.actor }}/${{ steps.set_id.outputs.GIST }}/raw/traffic.json"
@@ -71,10 +95,12 @@ jobs:
             echo ''> TRAFFIC.md
             echo '
             **Markdown**
+
             ```markdown' >> TRAFFIC.md
             echo "[![GitHub Traffic]($shields$url&logo=github)]($repo)" >> TRAFFIC.md
             echo '
             ```
+
             **HTML**
             ```html' >> TRAFFIC.md
             echo "<a href='$repo'><img alt='GitHub Traffic' src='$shields$url&logo=github'></a>" >> TRAFFIC.md
@@ -85,8 +111,12 @@ jobs:
             git config --global user.email "action@github.com"
             git commit -m "create traffic count badge"
           fi
-      - name: Push
-        uses: ad-m/github-push-action@master
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          branch: main
+
+      - name: Push changes
+        if: steps.check_secret.outputs.skip != 'true'
+        run: |
+          if git diff --staged --quiet && git diff --quiet origin/main..HEAD; then
+            echo "No changes to push"
+          else
+            git push origin main
+          fi

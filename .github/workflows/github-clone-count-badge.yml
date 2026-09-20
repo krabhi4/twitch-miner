@@ -2,8 +2,11 @@ name: GitHub Clone Count Update Everyday
 
 on:
   schedule:
-    - cron: "0 */24 * * *"
+    - cron: "0 0 * * *"
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -11,13 +14,27 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
-      
+
+      - name: Check secret configuration
+        id: check_secret
+        env:
+          SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
+        run: |
+          if [ -z "$SECRET_TOKEN" ]; then
+            echo "SECRET_TOKEN is not set. Skipping workflow."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: gh login
+        if: steps.check_secret.outputs.skip != 'true'
         env:
           SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
         run: echo "$SECRET_TOKEN" | gh auth login --with-token
 
       - name: parse latest clone count
+        if: steps.check_secret.outputs.skip != 'true'
         env:
           SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
         run: |
@@ -27,6 +44,7 @@ jobs:
             > clone.json
 
       - name: create gist and download previous count
+        if: steps.check_secret.outputs.skip != 'true'
         id: set_id
         env:
           GIST_ID: ${{ secrets.GIST_ID }}
@@ -42,7 +60,7 @@ jobs:
                 echo "$gist_id" | gh secret set GIST_ID
                 echo "GIST=$gist_id" >> "$GITHUB_OUTPUT"
                 cp clone.json clone_before.json
-                git rm --ignore-unmatch  CLONE.md
+                git rm --ignore-unmatch CLONE.md
               fi
           else
               echo "GIST_ID not found. Creating a gist..."
@@ -53,11 +71,13 @@ jobs:
           fi
 
       - name: update clone.json
+        if: steps.check_secret.outputs.skip != 'true'
         run: |
           curl https://raw.githubusercontent.com/MShawon/github-clone-count-badge/master/main.py > main.py
           python3 main.py
 
       - name: Update gist with latest count
+        if: steps.check_secret.outputs.skip != 'true'
         env:
           SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
         run: |
@@ -92,8 +112,11 @@ jobs:
             git commit -m "create clone count badge"
           fi
 
-      - name: Push
-        uses: ad-m/github-push-action@master
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          branch: main
+      - name: Push changes
+        if: steps.check_secret.outputs.skip != 'true'
+        run: |
+          if git diff --staged --quiet && git diff --quiet origin/main..HEAD; then
+            echo "No changes to push"
+          else
+            git push origin main
+          fi
