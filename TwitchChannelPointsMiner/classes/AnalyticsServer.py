@@ -511,19 +511,33 @@ class AnalyticsServer(Thread):
         def generate_log():
             global last_sent_log_index
             try:
-                last_received_index = int(request.args.get("lastIndex", last_sent_log_index))
+                last_received_index = int(request.args.get("lastIndex", 0))
             except (ValueError, TypeError):
                 last_received_index = 0
             logs_path = os.path.join(Path().absolute(), "logs")
             log_file_path = os.path.join(logs_path, f"{username}.log")
-            try:
-                with open(log_file_path, "r", encoding="utf-8") as log_file:
-                    log_content = log_file.read()
-                new_log_entries = log_content[last_received_index:]
-                last_sent_log_index = len(log_content)
-                return Response(new_log_entries, status=200, mimetype="text/plain")
-            except FileNotFoundError:
+            if not os.path.isfile(log_file_path):
                 return Response("Log file not found.", status=404, mimetype="text/plain")
+            try:
+                file_size = os.path.getsize(log_file_path)
+                with open(log_file_path, "r", encoding="utf-8", errors="replace") as log_file:
+                    if last_received_index <= 0 or last_received_index > file_size:
+                        start_pos = max(0, file_size - 64 * 1024)
+                        log_file.seek(start_pos)
+                        if start_pos > 0:
+                            log_file.readline()
+                    else:
+                        log_file.seek(last_received_index)
+                    new_log_entries = log_file.read(256 * 1024)
+                    new_offset = log_file.tell()
+                last_sent_log_index = new_offset
+                resp = Response(new_log_entries, status=200, mimetype="text/plain")
+                resp.headers["X-Log-Offset"] = str(new_offset)
+                resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+                return resp
+            except Exception as e:
+                logger.error(f"Error reading log file {log_file_path}: {e}")
+                return Response("Error reading log file.", status=500, mimetype="text/plain")
 
         def api_config_get():
             saved = load_config_file(username)

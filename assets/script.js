@@ -110,7 +110,17 @@ $(document).ready(function(){
     var isLogChecked = localStorage.getItem('logCheckboxState')==='true';
     $('#log').prop('checked', isLogChecked);
     if(isLogChecked) { $('#log-box').show(); startLogPoll(); }
-    $('#log').change(function(){ const c=$(this).prop('checked'); localStorage.setItem('logCheckboxState', c); if(c){ $('#log-box').show(); startLogPoll(); } else { $('#log-box').hide(); } });
+    $('#log').change(function(){
+        const c=$(this).prop('checked');
+        localStorage.setItem('logCheckboxState', c);
+        if(c){
+            $('#log-box').show();
+            startLogPoll();
+        } else {
+            $('#log-box').hide();
+            if(logTimer) { clearTimeout(logTimer); logTimer = null; }
+        }
+    });
 
     updateAnnotations();
 });
@@ -292,16 +302,49 @@ function updateAnnotations(){
 }
 function clearAnnotations(){ if(annotations) annotations.forEach((a,i)=>{ try{chart.removeAnnotation(a.id||`id-${i}`)}catch(e){}}); chart.clearAnnotations(); }
 
-let lastReceivedLogIndex=0, autoUpdateLog=true, logTimer=null;
-function startLogPoll(){ lastReceivedLogIndex=0; $('#log-content').text(''); pollLog(); }
+let lastReceivedLogIndex=0, autoUpdateLog=true, logTimer=null, logFailCount=0;
+function startLogPoll(){
+    if(logTimer) { clearTimeout(logTimer); logTimer = null; }
+    lastReceivedLogIndex = 0;
+    logFailCount = 0;
+    $('#log-content').text('');
+    pollLog();
+}
 function pollLog(){
     if(!$('#log').prop("checked")) return;
-    $.get(`/log?lastIndex=${lastReceivedLogIndex}`, function(data){
-        $("#log-content").append(data);
-        $("#log-content").scrollTop($("#log-content")[0].scrollHeight);
-        lastReceivedLogIndex += data.length;
-        if(autoUpdateLog) logTimer=setTimeout(pollLog,1000);
-    }).fail(()=>{ if(autoUpdateLog) logTimer=setTimeout(pollLog,3000); });
+    $.ajax({
+        url: `/log?lastIndex=${lastReceivedLogIndex}`,
+        type: 'GET',
+        dataType: 'text',
+        success: function(data, textStatus, xhr){
+            logFailCount = 0;
+            const offsetHeader = xhr.getResponseHeader('X-Log-Offset');
+            if (offsetHeader !== null) {
+                lastReceivedLogIndex = parseInt(offsetHeader, 10);
+            } else {
+                lastReceivedLogIndex += data.length;
+            }
+            if (data) {
+                const el = $("#log-content");
+                let cur = el.text() + data;
+                if (cur.length > 200000) {
+                    cur = cur.slice(-100000);
+                }
+                el.text(cur);
+                el.scrollTop(el[0].scrollHeight);
+            }
+            if(autoUpdateLog && $('#log').prop("checked")) {
+                logTimer = setTimeout(pollLog, 1500);
+            }
+        },
+        error: function(){
+            logFailCount++;
+            const backoff = Math.min(30000, 2000 * Math.pow(1.5, logFailCount));
+            if(autoUpdateLog && $('#log').prop("checked")) {
+                logTimer = setTimeout(pollLog, backoff);
+            }
+        }
+    });
 }
 $('#auto-update-log').click(()=>{
     autoUpdateLog=!autoUpdateLog;

@@ -5,7 +5,7 @@ import queue
 import pytz
 import sys
 from datetime import datetime
-from logging.handlers import QueueHandler, QueueListener, TimedRotatingFileHandler
+from logging.handlers import QueueHandler, QueueListener, RotatingFileHandler, TimedRotatingFileHandler
 from pathlib import Path
 
 import emoji
@@ -78,6 +78,8 @@ class LoggerSettings:
         "colored",
         "color_palette",
         "auto_clear",
+        "max_bytes",
+        "backup_count",
         "telegram",
         "discord",
         "webhook",
@@ -100,6 +102,8 @@ class LoggerSettings:
         colored: bool = False,
         color_palette: Optional[ColorPalette] = None,
         auto_clear: bool = True,
+        max_bytes: int = 10 * 1024 * 1024,
+        backup_count: int = 5,
         telegram: Union[Telegram, List[Telegram], None] = None,
         discord: Union[Discord, List[Discord], None] = None,
         webhook: Union[Webhook, List[Webhook], None] = None,
@@ -119,6 +123,8 @@ class LoggerSettings:
         self.colored = colored
         self.color_palette = color_palette if color_palette is not None else ColorPalette()
         self.auto_clear = auto_clear
+        self.max_bytes = max_bytes
+        self.backup_count = backup_count
         self.telegram = self._normalize_to_list(telegram)
         self.discord = self._normalize_to_list(discord)
         self.webhook = self._normalize_to_list(webhook)
@@ -312,11 +318,10 @@ def configure_loggers(username, settings):
                 logs_path,
                 f"{username}.log",
             )
-            file_handler = TimedRotatingFileHandler(
+            file_handler = RotatingFileHandler(
                 logs_file,
-                when="D",
-                interval=1,
-                backupCount=7,
+                maxBytes=settings.max_bytes,
+                backupCount=settings.backup_count,
                 encoding="utf-8",
                 delay=False,
             )
