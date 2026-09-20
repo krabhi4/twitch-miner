@@ -292,10 +292,16 @@ class TwitchLogin(object):
         )
         logger.info("Loading cookies saved on your computer...")
         twitch_domain = ".twitch.tv"
-        if browser == "1":  # chrome
-            cookie_jar = browser_cookie3.chrome(domain_name=twitch_domain)
-        else:
-            cookie_jar = browser_cookie3.firefox(domain_name=twitch_domain)
+        try:
+            import browser_cookie3
+
+            if browser == "1":
+                cookie_jar = browser_cookie3.chrome(domain_name=twitch_domain)
+            else:
+                cookie_jar = browser_cookie3.firefox(domain_name=twitch_domain)
+        except ImportError:
+            logger.info("browser_cookie3 is not installed, browser extraction unavailable.")
+            return None
         # logger.info(f"cookie_jar: {cookie_jar}")
         cookies_dict = requests.utils.dict_from_cookiejar(cookie_jar)
         # logger.info(f"cookies_dict: {cookies_dict}")

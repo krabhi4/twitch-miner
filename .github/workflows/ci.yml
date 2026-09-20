@@ -46,7 +46,7 @@ jobs:
 
       - name: Lint with flake8
         run: |
-          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 . --exclude=.git,build,dist,__pycache__ --count --select=E9,F63,F7,F82 --show-source --statistics
           flake8 TwitchChannelPointsMiner --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics
 
   docker-smoke-test:
