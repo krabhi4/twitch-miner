@@ -5,14 +5,14 @@ var options = {
         stacked: false,
         height: 460,
         zoom: { type: 'x', enabled: true, autoScaleYaxis: true },
-        foreColor: '#fff',
+        foreColor: '#9ca3af',
         toolbar: { autoSelected: 'zoom' }
     },
     dataLabels: { enabled: false },
     stroke: { curve: 'smooth', width: 2 },
     markers: { size: 0 },
     title: { text: 'Channel points (UTC)', align: 'left' },
-    colors: ["#f9826c","#7aa2f7","#9ece6a","#e0af68","#bb9af7","#ff7eb6"],
+    colors: ["#9146ff","#00c7b7","#e0af68","#ff5c8d","#3b82f6","#10b981"],
     fill: { type: 'gradient', gradient: { shadeIntensity: 1, inverseColors: false, opacityFrom: 0.5, opacityTo: 0, stops: [0, 90, 100] } },
     yaxis: { title: { text: 'Channel points' }, labels: { formatter: v => millify(v) } },
     xaxis: { type: 'datetime', labels: { datetimeUTC: false } },
@@ -29,7 +29,7 @@ var options = {
         }
     },
     noData: { text: 'No data – select a streamer' },
-    grid: { borderColor: '#3a3d52' }
+    grid: { borderColor: 'rgba(255, 255, 255, 0.08)' }
 };
 var chart = new ApexCharts(document.querySelector("#chart"), options);
 var currentStreamer = null;
@@ -81,9 +81,8 @@ $(document).ready(function(){
         if(t==='config') loadConfig();
     });
 
-    var hv=localStorage.getItem('headerVisibility');
-    if(hv==='hidden'){ $('#toggle-header').prop('checked',false); $('#header').hide(); }
-    $('#toggle-header').change(function(){ if(this.checked){$('#header').show(); localStorage.setItem('headerVisibility','visible');} else {$('#header').hide(); localStorage.setItem('headerVisibility','hidden');}});
+    localStorage.removeItem('headerVisibility');
+    $('#header').show();
 
     $('#annotations').click(()=>{ localStorage.setItem("annotations", $('#annotations').prop("checked")); updateAnnotations(); });
     $('#dark-mode').click(()=> toggleDarkMode());
@@ -349,7 +348,7 @@ function pollLog(){
 }
 $('#auto-update-log').click(()=>{
     autoUpdateLog=!autoUpdateLog;
-    $('#auto-update-log').text(autoUpdateLog ? '⏸️' : '▶️');
+    $('#auto-update-log').text(autoUpdateLog ? '⏸️ Pause' : '▶️ Resume');
     if(autoUpdateLog) pollLog();
 });
 

@@ -1,59 +1,88 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Twitch-Channel-Points-Miner-v2</title>
+    <title>Twitch Channel Points Miner</title>
     <link rel="icon" type="image/png" sizes="32x32" href="https://static.twitchcdn.net/assets/favicon-32-e29e246c157142c94346.png">
     <link rel="icon" type="image/png" sizes="16x16" href="https://static.twitchcdn.net/assets/favicon-16-52e571ffea063af7a7f4.png">
     <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.42.0"></script>
     <script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet" />
-    <link href="{{url_for('static', filename='dark-theme.css')}}" rel="stylesheet" />
     <link href="{{url_for('static', filename='style.css')}}" rel="stylesheet" />
+    <link href="{{url_for('static', filename='dark-theme.css')}}" rel="stylesheet" />
 </head>
 <body>
-    <nav class="topbar" id="header">
+    <header class="topbar" id="header">
         <div class="topbar-left">
-            <a href="https://github.com/krabhi4/twitch-miner" target="_blank" rel="noopener noreferrer"><img width="420" src="{{url_for('static', filename='banner.png')}}" alt="banner"></a>
+            <a href="https://github.com/krabhi4/twitch-miner" class="brand" target="_blank" rel="noopener noreferrer" title="Twitch Channel Points Miner v2">
+                <div class="brand-badge-icon">
+                    <i class="fa-brands fa-twitch"></i>
+                </div>
+                <div class="brand-text">
+                    <span class="brand-name">Twitch Miner</span>
+                    <span class="brand-pill">v2</span>
+                </div>
+            </a>
+        </div>
+        <div class="header-stats" id="overview-stats">
+            <div class="stat-pill" title="Total streamers tracked">
+                <i class="fa-solid fa-users"></i>
+                <span class="stat-num" id="stat-streamers">-</span>
+                <span class="stat-dim">streamers</span>
+            </div>
+            <div class="stat-pill" title="Total channel points">
+                <i class="fa-solid fa-coins"></i>
+                <span class="stat-num" id="stat-points">-</span>
+            </div>
+            <div class="stat-pill" title="Total channel points gained">
+                <i class="fa-solid fa-arrow-trend-up"></i>
+                <span class="stat-num stat-green">+<span id="stat-gained">-</span></span>
+            </div>
+            <div class="stat-pill" title="Overall prediction win rate">
+                <i class="fa-solid fa-trophy"></i>
+                <span class="stat-num"><span id="stat-winrate">-</span>% WR</span>
+            </div>
         </div>
         <div class="topbar-right">
-            <div class="header-stats" id="overview-stats">
-                <span class="stat" title="Total streamers"><i class="fa-solid fa-users"></i> <b id="stat-streamers">-</b> streamers</span>
-                <span class="stat" title="Total points"><i class="fa-solid fa-coins"></i> <b id="stat-points">-</b></span>
-                <span class="stat" title="Total gained"><i class="fa-solid fa-arrow-trend-up"></i> +<b id="stat-gained">-</b></span>
-                <span class="stat" title="Win rate"><i class="fa-solid fa-trophy"></i> <b id="stat-winrate">-</b>% WR</span>
-            </div>
-            <div class="topbar-actions">
-                <label class="toggle"><input type="checkbox" checked id="dark-mode"> Dark</label>
-                <label class="toggle"><input type="checkbox" checked id="toggle-header"> Header</label>
-                <a href="/logs" class="btn-small" target="_blank"><i class="fa-solid fa-file-lines"></i> Logs</a>
-            </div>
+            <label class="theme-toggle" title="Toggle theme">
+                <input type="checkbox" checked id="dark-mode">
+                <span class="theme-toggle-slider">
+                    <i class="fa-solid fa-moon icon-dark"></i>
+                    <i class="fa-solid fa-sun icon-light"></i>
+                </span>
+            </label>
+            <a href="/logs" class="btn-action" target="_blank" title="Live application logs">
+                <i class="fa-solid fa-file-lines"></i>
+                <span>Logs</span>
+            </a>
+            <a href="https://github.com/krabhi4/twitch-miner" target="_blank" rel="noopener noreferrer" class="btn-action-icon" title="GitHub repository">
+                <i class="fa-brands fa-github"></i>
+            </a>
         </div>
-    </nav>
+    </header>
 
-    <div class="tabs-nav">
+    <nav class="tabs-nav">
         <button class="tab-btn active" data-tab="dashboard"><i class="fa-solid fa-chart-line"></i> Dashboard</button>
         <button class="tab-btn" data-tab="history"><i class="fa-solid fa-clock-rotate-left"></i> Bet History</button>
-        <button class="tab-btn" data-tab="config"><i class="fa-solid fa-gear"></i> Config</button>
-    </div>
+        <button class="tab-btn" data-tab="config"><i class="fa-solid fa-sliders"></i> Settings</button>
+    </nav>
 
-    
     <div id="tab-dashboard" class="tab-pane active">
         <div class="controls-bar">
             <div class="control-group">
                 <div class="dropdown" id="sort-dropdown">
-                    <button class="button" aria-haspopup="true"><span id="sorting-by">Name ascending</span> <i class="fa-solid fa-angle-down"></i></button>
+                    <button class="button" aria-haspopup="true"><span id="sorting-by">Points descending</span> <i class="fa-solid fa-angle-down"></i></button>
                     <div class="dropdown-menu" id="dropdown-menu" role="menu">
                         <div class="dropdown-content">
+                            <a href="#" class="dropdown-item" onClick="changeSortBy(this)">Points descending</a>
+                            <a href="#" class="dropdown-item" onClick="changeSortBy(this)">Points ascending</a>
                             <a href="#" class="dropdown-item" onClick="changeSortBy(this)">Name ascending</a>
                             <a href="#" class="dropdown-item" onClick="changeSortBy(this)">Name descending</a>
-                            <a href="#" class="dropdown-item" onClick="changeSortBy(this)">Points ascending</a>
-                            <a href="#" class="dropdown-item" onClick="changeSortBy(this)">Points descending</a>
-                            <a href="#" class="dropdown-item" onClick="changeSortBy(this)">Gained ascending</a>
                             <a href="#" class="dropdown-item" onClick="changeSortBy(this)">Gained descending</a>
-                            <a href="#" class="dropdown-item" onClick="changeSortBy(this)">Last activity ascending</a>
+                            <a href="#" class="dropdown-item" onClick="changeSortBy(this)">Gained ascending</a>
                             <a href="#" class="dropdown-item" onClick="changeSortBy(this)">Last activity descending</a>
+                            <a href="#" class="dropdown-item" onClick="changeSortBy(this)">Last activity ascending</a>
                         </div>
                     </div>
                 </div>
@@ -83,7 +112,7 @@
                 <label class="toggle"><input type="checkbox" id="compare-mode"> Compare</label>
                 <label class="toggle"><input type="checkbox" checked id="annotations"> Annotations</label>
                 <button class="btn-small" id="btn-export" title="Export CSV"><i class="fa-solid fa-download"></i> Export</button>
-                <button class="btn-small" id="btn-reset-zoom"><i class="fa-solid fa-magnifying-glass-minus"></i> Reset zoom</button>
+                <button class="btn-small" id="btn-reset-zoom" title="Reset chart zoom"><i class="fa-solid fa-magnifying-glass-minus"></i> Reset zoom</button>
                 <label class="toggle"><input type="checkbox" id="log"> Log</label>
             </div>
         </div>
@@ -101,17 +130,19 @@
                     <h2 id="chart-title">Select a streamer</h2>
                     <div class="chart-stats" id="chart-stats"></div>
                 </div>
-                <div class="box" id="chart"></div>
+                <div class="box chart-box" id="chart"></div>
                 <div class="gain-breakdown" id="gain-breakdown"></div>
-                <div class="box" id="log-box" style="display:none;">
-                    <div class="box-header">Live Log <button id="auto-update-log" title="Pause/Resume">⏸️</button></div>
-                    <pre id="log-content">In your run.py file set save=True in logger_settings to save logs to a file.</pre>
+                <div class="box log-box-panel" id="log-box" style="display:none;">
+                    <div class="box-header">
+                        <span><i class="fa-solid fa-terminal"></i> Live Log</span>
+                        <button id="auto-update-log" class="btn-small" title="Pause / Resume auto-polling">⏸️ Pause</button>
+                    </div>
+                    <pre id="log-content">Enable save=True in logger_settings to view live log stream.</pre>
                 </div>
             </main>
         </div>
     </div>
 
-    
     <div id="tab-history" class="tab-pane">
         <div class="history-controls">
             <div class="control-group">
@@ -123,7 +154,7 @@
                     <option value="BET_PLACED">Bets placed</option>
                     <option value="WATCH_STREAK">Watch streaks</option>
                 </select>
-                <input type="text" id="history-search" class="input" placeholder="Search text...">
+                <input type="text" id="history-search" class="input" placeholder="Search events...">
                 <button class="btn-small" id="btn-history-refresh"><i class="fa-solid fa-rotate"></i> Refresh</button>
             </div>
             <div class="history-summary" id="history-summary"></div>
@@ -145,11 +176,10 @@
         <div class="pagination" id="history-pagination"></div>
     </div>
 
-    
     <div id="tab-config" class="tab-pane">
         <div class="config-layout">
             <div class="config-card">
-                <h3><i class="fa-solid fa-globe"></i> Global Settings <span class="subtitle">Applied to all streamers unless overridden</span></h3>
+                <h3><i class="fa-solid fa-globe"></i> Global Settings <span class="subtitle">Applied across all streamers unless overridden</span></h3>
                 <div id="global-config-form"></div>
                 <div class="form-actions">
                     <button class="btn-primary" id="btn-save-global"><i class="fa-solid fa-floppy-disk"></i> Save Global Settings</button>
@@ -168,7 +198,7 @@
             </div>
             <div class="config-card">
                 <h3><i class="fa-solid fa-list-ol"></i> Priority Order</h3>
-                <p class="help">Drag to reorder or edit priority list (STREAK, DROPS, ORDER, etc.)</p>
+                <p class="help">Drag or reorder priority list (STREAK, DROPS, ORDER, etc.)</p>
                 <div id="priority-editor"></div>
                 <button class="btn-small" id="btn-save-priority">Save Priority</button>
             </div>
@@ -177,18 +207,23 @@
 
 <script type="text/javascript">
     function toggleDarkMode() {
-        var darkMode = $('#dark-mode').prop("checked")
-        $("link[href='{{url_for('static', filename='dark-theme.css')}}']").prop("disabled", !darkMode);
+        var darkMode = $('#dark-mode').prop("checked");
+        $("link[href*='dark-theme.css']").prop("disabled", !darkMode);
+        document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
         if (window.chart) {
             chart.updateOptions({
-                colors: darkMode === true ? ["#f9826c"] : ['#008ffb'],
-                chart: { foreColor: darkMode === true ? "#fff" : '#373d3f' },
-                tooltip: { theme: darkMode === true ? "dark" : "light" },
-                grid: { borderColor: darkMode ? '#3a3d52' : '#e0e0e0' }
-            })
+                colors: darkMode ? ["#9146ff", "#00c7b7", "#e0af68", "#ff5c8d", "#3b82f6", "#10b981"] : ["#772ce8", "#0284c7", "#d97706", "#e11d48", "#2563eb", "#059669"],
+                chart: { foreColor: darkMode ? "#9ca3af" : "#4b5563" },
+                tooltip: { theme: darkMode ? "dark" : "light" },
+                grid: { borderColor: darkMode ? "rgba(255, 255, 255, 0.08)" : "#e5e7eb" }
+            });
         }
-        localStorage.setItem("dark-mode", darkMode)
+        localStorage.setItem("dark-mode", darkMode);
     }
+    var savedDark = localStorage.getItem("dark-mode");
+    var isDark = savedDark === null ? true : savedDark === "true";
+    $('#dark-mode').prop("checked", isDark);
+    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
     var refresh = parseInt("{{ refresh }}", 10);
     var daysAgo = parseInt("{{ daysAgo }}", 10);
     if (isNaN(refresh) || refresh <= 0) { refresh = 60; }

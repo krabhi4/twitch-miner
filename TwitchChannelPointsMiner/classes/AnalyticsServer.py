@@ -468,7 +468,6 @@ def download_assets(assets_folder, required_files):
 
 def check_assets():
     required_files = [
-        "banner.png",
         "charts.html",
         "script.js",
         "style.css",
@@ -749,6 +748,7 @@ class AnalyticsServer(Thread):
             template_folder=os.path.join(Path().absolute(), "assets"),
             static_folder=os.path.join(Path().absolute(), "assets"),
         )
+        self.app.config["TEMPLATES_AUTO_RELOAD"] = True
         self.app.add_url_rule(
             "/",
             "index",

@@ -1,15 +1,13 @@
-![Twitch Channel Points Miner - v2](https://raw.githubusercontent.com/krabhi4/twitch-miner/main/assets/banner.png)
+# Twitch Channel Points Miner v2
+
 <p align="center">
-<a href="https://github.com/krabhi4/twitch-miner/releases"><img alt="Latest Version" src="https://img.shields.io/github/v/release/krabhi4/twitch-miner?style=flat&color=white&logo=github&logoColor=white"></a>
+<a href="https://www.python.org/"><img alt="Python 3.10+" src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue.svg"></a>
+<a href="https://github.com/krabhi4/twitch-miner/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/krabhi4/twitch-miner/actions/workflows/ci.yml/badge.svg"></a>
 <a href="https://github.com/krabhi4/twitch-miner/pkgs/container/twitch-miner"><img alt="GHCR Package" src="https://img.shields.io/badge/GHCR-docker%20image-blue?style=flat&logo=docker&logoColor=white"></a>
 <a href="https://github.com/krabhi4/twitch-miner/stargazers"><img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/krabhi4/twitch-miner?style=flat&color=limegreen&logo=github&logoColor=white"></a>
-<a href="https://github.com/krabhi4/twitch-miner/network/members"><img alt="GitHub forks" src="https://img.shields.io/github/forks/krabhi4/twitch-miner?style=flat&color=blue&logo=github&logoColor=white"></a>
 <a href="https://github.com/krabhi4/twitch-miner/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/krabhi4/twitch-miner?style=flat&color=purple&logo=github&logoColor=white"></a>
 <a href="https://github.com/krabhi4/twitch-miner/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/krabhi4/twitch-miner?style=flat&color=black&logo=unlicense&logoColor=white"></a>
-<a href="https://github.com/krabhi4/twitch-miner"><img alt="GitHub last commit" src="https://img.shields.io/github/last-commit/krabhi4/twitch-miner?style=flat&color=lightyellow&logo=github&logoColor=white"></a>
 </p>
-
-<h1 align="center">https://github.com/krabhi4/twitch-miner</h1>
 
 **Credits**
 - Main idea: https://github.com/gottagofaster236/Twitch-Channel-Points-Miner
