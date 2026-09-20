@@ -339,16 +339,29 @@ twitch_miner.mine(followers=True, blacklist=["user1", "user2"])  # Blacklist exa
 ```
 
 ### By cloning the repository
-1. Clone this repository `git clone https://github.com/rdavydov/Twitch-Channel-Points-Miner-v2`
-2. Install all the requirements `pip install -r requirements.txt` . If you have problems with requirements, make sure to have at least Python3.6. You could also try to create a _virtualenv_ and then install all the requirements
+1. Clone this repository and enter the project folder
 ```sh
-pip install virtualenv
-virtualenv -p python3 venv
+git clone https://github.com/krabhi4/twitch-miner
+cd twitch-miner
+```
+
+2. Create and activate a virtual environment
+```sh
+python3 -m venv venv
 source venv/bin/activate
+```
+
+On Windows, activate it with:
+```powershell
+.\venv\Scripts\Activate.ps1
+```
+
+3. Install all the requirements
+```sh
 pip install -r requirements.txt
 ```
 
-Start mining! `python run.py` 🥳
+Start mining! `python example.py` 🥳
 
 ### Docker
 
