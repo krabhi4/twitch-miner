@@ -4,7 +4,6 @@ from random import uniform
 
 from millify import millify
 
-#from TwitchChannelPointsMiner.utils import char_decision_as_index, float_round
 from TwitchChannelPointsMiner.utils import float_round
 
 
@@ -137,7 +136,7 @@ class Bet(object):
     __slots__ = ["outcomes", "decision", "total_users", "total_points", "settings"]
 
     def __init__(self, outcomes: list, settings: BetSettings):
-        self.outcomes = outcomes
+        self.outcomes = copy.deepcopy(outcomes) if outcomes else []
         self.__clear_outcomes()
         self.decision: dict = {}
         self.total_users = 0
@@ -145,25 +144,23 @@ class Bet(object):
         self.settings = settings
 
     def update_outcomes(self, outcomes):
-        for index in range(0, len(self.outcomes)):
+        for index in range(0, min(len(self.outcomes), len(outcomes))):
             self.outcomes[index][OutcomeKeys.TOTAL_USERS] = int(
-                outcomes[index][OutcomeKeys.TOTAL_USERS]
+                outcomes[index].get(OutcomeKeys.TOTAL_USERS, 0)
             )
             self.outcomes[index][OutcomeKeys.TOTAL_POINTS] = int(
-                outcomes[index][OutcomeKeys.TOTAL_POINTS]
+                outcomes[index].get(OutcomeKeys.TOTAL_POINTS, 0)
             )
-            if outcomes[index]["top_predictors"] != []:
-                # Sort by points placed by other users
-                outcomes[index]["top_predictors"] = sorted(
-                    outcomes[index]["top_predictors"],
-                    key=lambda x: x["points"],
+            top_predictors = outcomes[index].get("top_predictors", [])
+            if top_predictors:
+                sorted_predictors = sorted(
+                    top_predictors,
+                    key=lambda x: x.get("points", 0),
                     reverse=True,
                 )
-                # Get the first elements (most placed)
-                top_points = outcomes[index]["top_predictors"][0]["points"]
+                top_points = sorted_predictors[0].get("points", 0)
                 self.outcomes[index][OutcomeKeys.TOP_POINTS] = top_points
 
-        # Inefficient, but otherwise outcomekeys are represented wrong
         self.total_points = 0
         self.total_users = 0
         for index in range(0, len(self.outcomes)):
@@ -179,13 +176,11 @@ class Bet(object):
                     (100 * self.outcomes[index][OutcomeKeys.TOTAL_USERS]) / self.total_users
                 )
                 self.outcomes[index][OutcomeKeys.ODDS] = float_round(
-                    #self.total_points / max(self.outcomes[index][OutcomeKeys.TOTAL_POINTS], 1)
                     0
                     if self.outcomes[index][OutcomeKeys.TOTAL_POINTS] == 0
                     else self.total_points / self.outcomes[index][OutcomeKeys.TOTAL_POINTS]
                 )
                 self.outcomes[index][OutcomeKeys.ODDS_PERCENTAGE] = float_round(
-                    #100 / max(self.outcomes[index][OutcomeKeys.ODDS], 1)
                     0
                     if self.outcomes[index][OutcomeKeys.ODDS] == 0
                     else 100 / self.outcomes[index][OutcomeKeys.ODDS]
@@ -194,10 +189,13 @@ class Bet(object):
         self.__clear_outcomes()
 
     def __repr__(self):
-        return f"Bet(total_users={millify(self.total_users)}, total_points={millify(self.total_points)}), decision={self.decision})\n\t\tOutcome A({self.get_outcome(0)})\n\t\tOutcome B({self.get_outcome(1)})"
+        outcomes_str = "\n\t\t".join(
+            f"Outcome {chr(65 + i)}({self.get_outcome(i)})"
+            for i in range(len(self.outcomes))
+        )
+        return f"Bet(total_users={millify(self.total_users)}, total_points={millify(self.total_points)}, decision={self.decision})\n\t\t{outcomes_str}"
 
     def get_decision(self, parsed=False):
-        #decision = self.outcomes[0 if self.decision["choice"] == "A" else 1]
         decision = self.outcomes[self.decision["choice"]]
         return decision if parsed is False else Bet.__parse_outcome(decision)
 
@@ -206,7 +204,9 @@ class Bet(object):
         return f"{outcome['title']} ({outcome['color']}), Points: {millify(outcome[OutcomeKeys.TOTAL_POINTS])}, Users: {millify(outcome[OutcomeKeys.TOTAL_USERS])} ({outcome[OutcomeKeys.PERCENTAGE_USERS]}%), Odds: {outcome[OutcomeKeys.ODDS]} ({outcome[OutcomeKeys.ODDS_PERCENTAGE]}%)"
 
     def get_outcome(self, index):
-        return Bet.__parse_outcome(self.outcomes[index])
+        if 0 <= index < len(self.outcomes):
+            return Bet.__parse_outcome(self.outcomes[index])
+        return ""
 
     def __clear_outcomes(self):
         for index in range(0, len(self.outcomes)):
@@ -233,25 +233,21 @@ class Bet(object):
                 if key not in self.outcomes[index]:
                     self.outcomes[index][key] = 0
 
-    '''def __return_choice(self, key) -> str:
-        return "A" if self.outcomes[0][key] > self.outcomes[1][key] else "B"'''
-
     def __return_choice(self, key) -> int:
-        largest=0
+        largest = 0
         for index in range(0, len(self.outcomes)):
             if self.outcomes[index][key] > self.outcomes[largest][key]:
                 largest = index
         return largest
 
     def __return_number_choice(self, number) -> int:
-        if (len(self.outcomes) > number):
+        if len(self.outcomes) > number:
             return number
         else:
             return 0
 
     def skip(self) -> bool:
         if self.settings.filter_condition is not None:
-            # key == by , condition == where
             key = self.settings.filter_condition.by
             condition = self.settings.filter_condition.where
             value = self.settings.filter_condition.value
@@ -262,15 +258,14 @@ class Bet(object):
                 else key.replace("decision", "total")
             )
             if key in [OutcomeKeys.TOTAL_USERS, OutcomeKeys.TOTAL_POINTS]:
-                compared_value = (
-                    self.outcomes[0][fixed_key] + self.outcomes[1][fixed_key]
+                compared_value = sum(
+                    self.outcomes[i].get(fixed_key, 0)
+                    for i in range(len(self.outcomes))
                 )
             else:
-                #outcome_index = char_decision_as_index(self.decision["choice"])
                 outcome_index = self.decision["choice"]
                 compared_value = self.outcomes[outcome_index][fixed_key]
 
-            # Check if condition is satisfied
             if condition == Condition.GT:
                 if compared_value > value:
                     return False, compared_value
@@ -283,9 +278,9 @@ class Bet(object):
             elif condition == Condition.LTE:
                 if compared_value <= value:
                     return False, compared_value
-            return True, compared_value  # Else skip the bet
+            return True, compared_value
         else:
-            return False, 0  # Default don't skip the bet
+            return False, 0
 
     def calculate(self, balance: int) -> dict:
         self.decision = {"choice": None, "amount": 0, "id": None}
@@ -314,10 +309,13 @@ class Bet(object):
         elif self.settings.strategy == Strategy.NUMBER_8:
             self.decision["choice"] = self.__return_number_choice(7)
         elif self.settings.strategy == Strategy.SMART:
-            difference = abs(
-                self.outcomes[0][OutcomeKeys.PERCENTAGE_USERS]
-                - self.outcomes[1][OutcomeKeys.PERCENTAGE_USERS]
-            )
+            if len(self.outcomes) >= 2:
+                difference = abs(
+                    self.outcomes[0][OutcomeKeys.PERCENTAGE_USERS]
+                    - self.outcomes[1][OutcomeKeys.PERCENTAGE_USERS]
+                )
+            else:
+                difference = 0
             self.decision["choice"] = (
                 self.__return_choice(OutcomeKeys.ODDS)
                 if difference < self.settings.percentage_gap
@@ -325,7 +323,6 @@ class Bet(object):
             )
 
         if self.decision["choice"] is not None:
-            #index = char_decision_as_index(self.decision["choice"])
             index = self.decision["choice"]
             self.decision["id"] = self.outcomes[index]["id"]
             self.decision["amount"] = min(
@@ -333,13 +330,15 @@ class Bet(object):
                 self.settings.max_points,
             )
             if (
-                self.settings.stealth_mode is True
+                self.settings.stealth_mode
+                and self.outcomes[index][OutcomeKeys.TOP_POINTS] > 0
                 and self.decision["amount"]
                 >= self.outcomes[index][OutcomeKeys.TOP_POINTS]
             ):
                 reduce_amount = uniform(1, 5)
-                self.decision["amount"] = (
-                    self.outcomes[index][OutcomeKeys.TOP_POINTS] - reduce_amount
+                self.decision["amount"] = max(
+                    0,
+                    self.outcomes[index][OutcomeKeys.TOP_POINTS] - reduce_amount,
                 )
-            self.decision["amount"] = int(self.decision["amount"])
+            self.decision["amount"] = max(0, int(self.decision["amount"]))
         return self.decision

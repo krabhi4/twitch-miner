@@ -1,6 +1,8 @@
 import platform
 import re
+import secrets
 import socket
+import string
 import time
 from copy import deepcopy
 from datetime import datetime, timezone
@@ -40,21 +42,9 @@ def server_time(message_data):
     )
 
 
-# https://en.wikipedia.org/wiki/Cryptographic_nonce
 def create_nonce(length=30) -> str:
-    nonce = ""
-    for i in range(length):
-        char_index = randrange(0, 10 + 26 + 26)
-        if char_index < 10:
-            char = chr(ord("0") + char_index)
-        elif char_index < 10 + 26:
-            char = chr(ord("a") + char_index - 10)
-        else:
-            char = chr(ord("A") + char_index - 26 - 10)
-        nonce += char
-    return nonce
-
-# for mobile-token
+    alphabet = string.ascii_letters + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
 def get_user_agent(browser: str) -> str:
@@ -143,16 +133,11 @@ def set_default_settings(settings, defaults):
     )
 
 
-'''def char_decision_as_index(char):
-    return 0 if char == "A" else 1'''
-
-
 def internet_connection_available(host="8.8.8.8", port=53, timeout=3):
     try:
-        socket.setdefaulttimeout(timeout)
-        socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((host, port))
-        return True
-    except socket.error:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
         return False
 
 
@@ -161,25 +146,31 @@ def percentage(a, b):
 
 
 def create_chunks(lst, n):
-    return [lst[i: (i + n)] for i in range(0, len(lst), n)]  # noqa: E203
+    return [lst[i: (i + n)] for i in range(0, len(lst), n)]
 
 
 def download_file(name, fpath):
-    r = requests.get(
-        path.join(GITHUB_url, name),
-        headers={"User-Agent": get_user_agent("FIREFOX")},
-        stream=True,
-    )
-    if r.status_code == 200:
-        with open(fpath, "wb") as f:
-            for chunk in r.iter_content(chunk_size=1024):
-                if chunk:
-                    f.write(chunk)
-    return True
+    try:
+        r = requests.get(
+            path.join(GITHUB_url, name),
+            headers={"User-Agent": get_user_agent("FIREFOX")},
+            stream=True,
+            timeout=15,
+        )
+        if r.status_code == 200:
+            with open(fpath, "wb") as f:
+                for chunk in r.iter_content(chunk_size=1024):
+                    if chunk:
+                        f.write(chunk)
+            return True
+    except requests.RequestException:
+        return False
+    return False
 
 
 def read(fname):
-    return open(path.join(path.dirname(__file__), fname), encoding="utf-8").read()
+    with open(path.join(path.dirname(__file__), fname), encoding="utf-8") as f:
+        return f.read()
 
 
 def init2dict(content):
@@ -201,7 +192,8 @@ def check_versions():
                     s.strip("/")
                     for s in [GITHUB_url, "TwitchChannelPointsMiner", "__init__.py"]
                 ]
-            )
+            ),
+            timeout=10,
         )
         github_version = init2dict(r.text)
         github_version = (

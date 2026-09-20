@@ -32,7 +32,7 @@ class EventPrediction(object):
         self.streamer = streamer
 
         self.event_id = event_id
-        self.title = title.strip()
+        self.title = (title or "").strip()
         self.created_at = created_at
         self.prediction_window_seconds = prediction_window_seconds
         self.status = status
@@ -49,12 +49,14 @@ class EventPrediction(object):
     def __str__(self):
         return (
             f"EventPrediction: {self.streamer} - {self.title}"
-            if Settings.logger.less
+            if getattr(Settings.logger, "less", False)
             else self.__repr__()
         )
 
     def elapsed(self, timestamp):
-        return float_round((timestamp - self.created_at).total_seconds())
+        if timestamp is not None and self.created_at is not None:
+            return max(0.0, float_round((timestamp - self.created_at).total_seconds()))
+        return 0.0
 
     def closing_bet_after(self, timestamp):
         return float_round(self.prediction_window_seconds - self.elapsed(timestamp))
@@ -63,15 +65,22 @@ class EventPrediction(object):
         return f"{self}\n\t\t{self.bet}\n\t\tResult: {self.result['string']}"
 
     def parse_result(self, result) -> dict:
-        result_type = result["type"]
+        result = result or {}
+        result_type = result.get("type")
+
+        decision_amount = 0
+        if self.bet and getattr(self.bet, "decision", None):
+            decision_amount = self.bet.decision.get("amount", 0)
+
+        points_won = result.get("points_won") or 0
 
         points = {}
         points["placed"] = (
-            self.bet.decision["amount"] if result_type != "REFUND" else 0
+            decision_amount if result_type != "REFUND" else 0
         )
         points["won"] = (
-            result["points_won"]
-            if result["points_won"] or result_type == "REFUND"
+            points_won
+            if points_won or result_type == "REFUND"
             else 0
         )
         points["gained"] = (

@@ -27,13 +27,14 @@ class Campaign(object):
 
     def __init__(self, dict):
         self.id = dict["id"]
-        self.game = dict["game"]
+        self.game = dict.get("game")
         self.name = dict["name"]
-        self.status = dict["status"]
+        self.status = dict.get("status")
+        allow_channels = dict.get("allow", {}).get("channels") if dict.get("allow") else None
         self.channels = (
-            []
-            if dict["allow"]["channels"] is None
-            else list(map(lambda x: x["id"], dict["allow"]["channels"]))
+            [x["id"] for x in allow_channels]
+            if allow_channels
+            else []
         )
         self.in_inventory = False
 
@@ -41,41 +42,39 @@ class Campaign(object):
         self.start_at = parse_datetime(dict["startAt"])
         self.dt_match = self.start_at < datetime.now() < self.end_at
 
-        self.drops = list(map(lambda x: Drop(x), dict["timeBasedDrops"]))
+        self.drops = [Drop(x) for x in (dict.get("timeBasedDrops") or [])]
 
     def __repr__(self):
         return f"Campaign(id={self.id}, name={self.name}, game={self.game}, in_inventory={self.in_inventory})"
 
     def __str__(self):
+        game_name = self.game.get("displayName", "") if isinstance(self.game, dict) else ""
         return (
-            f"{self.name}, Game: {self.game['displayName']} - Drops: {len(self.drops)} pcs. - In inventory: {self.in_inventory}"
-            if Settings.logger.less
+            f"{self.name}, Game: {game_name} - Drops: {len(self.drops)} pcs. - In inventory: {self.in_inventory}"
+            if getattr(Settings.logger, "less", False)
             else self.__repr__()
         )
 
     def clear_drops(self):
         self.drops = list(
-            filter(lambda x: x.dt_match is True and x.is_claimed is False, self.drops)
+            filter(lambda x: x.dt_match and not x.is_claimed, self.drops)
         )
 
     def __eq__(self, other):
-        if isinstance(other, self.__class__):
+        if isinstance(other, Campaign):
             return self.id == other.id
-        else:
-            return False
+        return False
+
+    def __hash__(self):
+        return hash(self.id)
 
     def sync_drops(self, drops, callback):
-        # Iterate all the drops from inventory
         for drop in drops:
-            # Iterate all the drops from out campaigns array
-            # After id match update with:
-            # [currentMinutesWatched, hasPreconditionsMet, dropInstanceID, isClaimed]
             for i in range(len(self.drops)):
                 current_id = self.drops[i].id
                 if drop["id"] == current_id:
                     self.drops[i].update(drop["self"])
-                    # If after update we all conditions are meet we can claim the drop
-                    if self.drops[i].is_claimable is True:
+                    if self.drops[i].is_claimable:
                         claimed = callback(self.drops[i])
                         self.drops[i].is_claimed = claimed
                     break

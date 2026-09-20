@@ -16,12 +16,21 @@ class Message(object):
     ]
 
     def __init__(self, data):
-        self.topic, self.topic_user = data["topic"].split(".")
+        topic_parts = data.get("topic", "").split(".", 1)
+        self.topic = topic_parts[0]
+        self.topic_user = topic_parts[1] if len(topic_parts) > 1 else ""
 
-        self.message = json.loads(data["message"])
-        self.type = self.message["type"]
+        msg = data.get("message", "{}")
+        if isinstance(msg, dict):
+            self.message = msg
+        else:
+            try:
+                self.message = json.loads(msg)
+            except (json.JSONDecodeError, TypeError):
+                self.message = {}
 
-        self.data = self.message["data"] if "data" in self.message else None
+        self.type = self.message.get("type", "")
+        self.data = self.message.get("data") if isinstance(self.message, dict) else None
 
         self.timestamp = self.__get_timestamp()
         self.channel_id = self.__get_channel_id()
@@ -35,35 +44,21 @@ class Message(object):
         return f"{self.message}"
 
     def __get_timestamp(self):
-        return (
-            server_time(self.message)
-            if self.data is None
-            else (
-                self.data["timestamp"]
-                if "timestamp" in self.data
-                else server_time(self.data)
-            )
-        )
+        if not isinstance(self.data, dict):
+            return server_time(self.message) if isinstance(self.message, dict) else None
+        if "timestamp" in self.data:
+            return self.data["timestamp"]
+        return server_time(self.data)
 
     def __get_channel_id(self):
-        return (
-            self.topic_user
-            if self.data is None
-            else (
-                self.data["prediction"]["channel_id"]
-                if "prediction" in self.data
-                else (
-                    self.data["claim"]["channel_id"]
-                    if "claim" in self.data
-                    else (
-                        self.data["channel_id"]
-                        if "channel_id" in self.data
-                        else (
-                            self.data["balance"]["channel_id"]
-                            if "balance" in self.data
-                            else self.topic_user
-                        )
-                    )
-                )
-            )
-        )
+        if not isinstance(self.data, dict):
+            return self.topic_user
+        if isinstance(self.data.get("prediction"), dict) and "channel_id" in self.data["prediction"]:
+            return self.data["prediction"]["channel_id"]
+        if isinstance(self.data.get("claim"), dict) and "channel_id" in self.data["claim"]:
+            return self.data["claim"]["channel_id"]
+        if "channel_id" in self.data:
+            return self.data["channel_id"]
+        if isinstance(self.data.get("balance"), dict) and "channel_id" in self.data["balance"]:
+            return self.data["balance"]["channel_id"]
+        return self.topic_user

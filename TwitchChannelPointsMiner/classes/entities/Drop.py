@@ -68,7 +68,7 @@ class Drop(object):
                 #  - or we have watched 1 and the previous value is 0 - We are collecting a new drop :)
                 (
                     updated_percentage > self.percentage_progress
-                    and quarter is True
+                    and quarter
                     and self.current_minutes_watched != 0
                 )
                 or (
@@ -82,7 +82,7 @@ class Drop(object):
         self.drop_instance_id = progress["dropInstanceID"]
         self.is_claimed = progress["isClaimed"]
         self.is_claimable = (
-            self.is_claimed is False and self.drop_instance_id is not None
+            not self.is_claimed and self.drop_instance_id is not None
         )
         self.percentage_progress = updated_percentage
 
@@ -92,7 +92,7 @@ class Drop(object):
     def __str__(self):
         return (
             f"{self.name} ({self.benefit}) {self.current_minutes_watched}/{self.minutes_required} ({self.percentage_progress}%)"
-            if Settings.logger.less
+            if getattr(Settings.logger, "less", False)
             else self.__repr__()
         )
 
@@ -104,7 +104,9 @@ class Drop(object):
         return f"|{('█' * progress)}{(' ' * remaining)}|\t{self.percentage_progress}% [{self.current_minutes_watched}/{self.minutes_required}]"
 
     def __eq__(self, other):
-        if isinstance(other, self.__class__):
+        if isinstance(other, Drop):
             return self.id == other.id
-        else:
-            return False
+        return False
+
+    def __hash__(self):
+        return hash(self.id)

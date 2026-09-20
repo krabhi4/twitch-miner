@@ -67,6 +67,7 @@ body:
           console_level=logging.INFO,
           file_level=logging.DEBUG,
           less=True,
+        )
         ```
         2. Start the miner, wait for the error, then stop the miner and post the contents of the log file (`logs\username.log`) to https://gist.github.com/ and post a link here.
         3. Create another gist with your console output, just in case. Paste a link here as well.

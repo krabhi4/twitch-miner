@@ -5,7 +5,8 @@ import re
 
 
 def read(fname):
-    return open(path.join(path.dirname(__file__), fname), encoding="utf-8").read()
+    with open(path.join(path.dirname(__file__), fname), encoding="utf-8") as f:
+        return f.read()
 
 
 metadata = dict(

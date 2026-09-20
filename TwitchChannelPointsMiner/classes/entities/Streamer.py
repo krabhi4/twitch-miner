@@ -1,3 +1,4 @@
+import copy
 import json
 import logging
 import os
@@ -65,7 +66,7 @@ class StreamerSettings(object):
             self.chat = ChatPresence.ONLINE
 
     def __repr__(self):
-        return f"BetSettings(make_predictions={self.make_predictions}, follow_raid={self.follow_raid}, claim_drops={self.claim_drops}, claim_moments={self.claim_moments}, watch_streak={self.watch_streak}, community_goals={self.community_goals}, bet={self.bet}, chat={self.chat})"
+        return f"StreamerSettings(make_predictions={self.make_predictions}, follow_raid={self.follow_raid}, claim_drops={self.claim_drops}, claim_moments={self.claim_moments}, watch_streak={self.watch_streak}, community_goals={self.community_goals}, bet={self.bet}, chat={self.chat})"
 
 
 class Streamer(object):
@@ -236,8 +237,8 @@ class Streamer(object):
     def persistent_series(self, event_type="Watch"):
         self.__save_json("series", event_type=event_type)
 
-    def __save_json(self, key, data={}, event_type="Watch"):
-        # https://stackoverflow.com/questions/4676195/why-do-i-need-to-multiply-unix-timestamps-by-1000-in-javascript
+    def __save_json(self, key, data=None, event_type="Watch"):
+        data = {} if data is None else copy.deepcopy(data)
         now = datetime.now().replace(microsecond=0)
         data.update({"x": round(datetime.timestamp(now) * 1000)})
 
@@ -247,26 +248,27 @@ class Streamer(object):
                 data.update({"z": event_type.replace("_", " ").title()})
 
         fname = os.path.join(Settings.analytics_path, f"{self.username}.json")
-        temp_fname = fname + ".temp"  # Temporary file name
+        temp_fname = fname + ".temp"
 
         with self.mutex:
-            # Create and write to the temporary file
-            with open(temp_fname, "w") as temp_file:
-                json_data = json.load(open(fname, "r")) if os.path.isfile(fname) else {}
+            with open(temp_fname, "w", encoding="utf-8") as temp_file:
+                json_data = {}
+                if os.path.isfile(fname):
+                    try:
+                        with open(fname, "r", encoding="utf-8") as f:
+                            json_data = json.load(f)
+                    except (json.JSONDecodeError, OSError):
+                        json_data = {}
                 if key not in json_data:
                     json_data[key] = []
                 json_data[key].append(data)
                 json.dump(json_data, temp_file, indent=4)
 
-            # Replace the original file with the temporary file
             os.replace(temp_fname, fname)
 
     def leave_chat(self):
         if self.irc_chat is not None:
             self.irc_chat.stop()
-
-            # Recreate a new thread to start again
-            # raise RuntimeError("threads can only be started once")
             self.irc_chat = ThreadChat(
                 self.irc_chat.username,
                 self.irc_chat.token,
@@ -275,7 +277,7 @@ class Streamer(object):
 
     def __join_chat(self):
         if self.irc_chat is not None:
-            if self.irc_chat.is_alive() is False:
+            if not self.irc_chat.is_alive():
                 self.irc_chat.start()
 
     def toggle_chat(self):
@@ -297,4 +299,4 @@ class Streamer(object):
         self.community_goals[community_goal.goal_id] = community_goal
 
     def delete_community_goal(self, goal_id):
-        self.community_goals.pop(goal_id)
+        self.community_goals.pop(goal_id, None)

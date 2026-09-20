@@ -180,26 +180,24 @@ class GQLOperations:
             }
         },
     }
-    PersonalSections = (
-        {
-            "operationName": "PersonalSections",
-            "variables": {
-                "input": {
-                    "sectionInputs": ["FOLLOWED_SECTION"],
-                    "recommendationContext": {"platform": "web"},
-                },
-                "channelLogin": None,
-                "withChannelUser": False,
-                "creatorAnniversariesExperimentEnabled": False,
+    PersonalSections = {
+        "operationName": "PersonalSections",
+        "variables": {
+            "input": {
+                "sectionInputs": ["FOLLOWED_SECTION"],
+                "recommendationContext": {"platform": "web"},
             },
-            "extensions": {
-                "persistedQuery": {
-                    "version": 1,
-                    "sha256Hash": "9fbdfb00156f754c26bde81eb47436dee146655c92682328457037da1a48ed39",
-                }
-            },
+            "channelLogin": None,
+            "withChannelUser": False,
+            "creatorAnniversariesExperimentEnabled": False,
         },
-    )
+        "extensions": {
+            "persistedQuery": {
+                "version": 1,
+                "sha256Hash": "9fbdfb00156f754c26bde81eb47436dee146655c92682328457037da1a48ed39",
+            }
+        },
+    }
     ChannelFollows = {
         "operationName": "ChannelFollows",
         "variables": {"limit": 100, "order": "ASC"},

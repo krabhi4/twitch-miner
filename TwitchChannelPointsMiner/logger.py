@@ -11,7 +11,7 @@ from pathlib import Path
 import emoji
 from colorama import Fore, init
 
-from typing import Union, List
+from typing import Union, List, Optional
 
 from TwitchChannelPointsMiner.classes.Discord import Discord
 from TwitchChannelPointsMiner.classes.Webhook import Webhook
@@ -94,11 +94,11 @@ class LoggerSettings:
         less: bool = False,
         console_level: int = logging.INFO,
         console_username: bool = False,
-        time_zone: str or None = None,
+        time_zone: Optional[str] = None,
         file_level: int = logging.DEBUG,
         emoji: bool = platform.system() != "Windows",
         colored: bool = False,
-        color_palette: ColorPalette = ColorPalette(),
+        color_palette: Optional[ColorPalette] = None,
         auto_clear: bool = True,
         telegram: Union[Telegram, List[Telegram], None] = None,
         discord: Union[Discord, List[Discord], None] = None,
@@ -107,7 +107,7 @@ class LoggerSettings:
         pushover: Union[Pushover, List[Pushover], None] = None,
         gotify: Union[Gotify, List[Gotify], None] = None,
         ntfy: Union[Ntfy, List[Ntfy], None] = None,
-        username: str or None = None
+        username: Optional[str] = None
     ):
         self.save = save
         self.less = less
@@ -117,7 +117,7 @@ class LoggerSettings:
         self.file_level = file_level
         self.emoji = emoji
         self.colored = colored
-        self.color_palette = color_palette
+        self.color_palette = color_palette if color_palette is not None else ColorPalette()
         self.auto_clear = auto_clear
         self.telegram = self._normalize_to_list(telegram)
         self.discord = self._normalize_to_list(discord)
@@ -321,8 +321,7 @@ def configure_loggers(username, settings):
                 delay=False,
             )
         else:
-            # Getting time zone from the console_handler's formatter since they are the same
-            tz = "" if console_handler.formatter.timezone is False else console_handler.formatter.timezone
+            tz = getattr(console_handler.formatter, "timezone", None) or None
             logs_file = os.path.join(
                 logs_path,
                 f"{username}.{datetime.now(tz).strftime('%Y%m%d-%H%M%S')}.log",

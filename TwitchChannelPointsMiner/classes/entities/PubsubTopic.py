@@ -13,4 +13,16 @@ class PubsubTopic(object):
         if self.is_user_topic():
             return f"{self.topic}.{self.user_id}"
         else:
-            return f"{self.topic}.{self.streamer.channel_id}"
+            channel_id = getattr(self.streamer, "channel_id", self.streamer)
+            return f"{self.topic}.{channel_id}"
+
+    def __repr__(self):
+        return f"PubsubTopic(topic={self.topic}, user_id={self.user_id}, streamer={self.streamer})"
+
+    def __eq__(self, other):
+        if isinstance(other, PubsubTopic):
+            return str(self) == str(other)
+        return False
+
+    def __hash__(self):
+        return hash(str(self))

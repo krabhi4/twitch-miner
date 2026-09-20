@@ -10,4 +10,8 @@ if __name__ == '__main__':
     if len(argv) <= 1:
         print("Specify a pickle file as a parameter, e.g. cookies/user.pkl")
     else:
-        print(pickle.load(open(argv[1], 'rb')))
+        try:
+            with open(argv[1], "rb") as f:
+                print(pickle.load(f))
+        except (FileNotFoundError, PermissionError, pickle.UnpicklingError, EOFError) as e:
+            print(f"Error loading pickle file: {e}")
