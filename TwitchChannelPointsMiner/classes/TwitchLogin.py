@@ -22,6 +22,8 @@ from TwitchChannelPointsMiner.constants import CLIENT_ID, GQLOperations, USER_AG
 from datetime import datetime, timedelta, timezone
 from time import sleep
 
+from TwitchChannelPointsMiner.classes.Settings import Events
+
 logger = logging.getLogger(__name__)
 
 """def interceptor(request) -> str:
@@ -73,7 +75,10 @@ class TwitchLogin(object):
         self.shared_cookies = []
 
     def login_flow(self):
-        logger.info("You'll have to login to Twitch!")
+        logger.info(
+            "You'll have to login to Twitch!",
+            extra={"emoji": ":wrench:", "event": Events.LOGIN_FLOW},
+        )
 
         post_data = {
             "client_id": self.client_id,
@@ -86,7 +91,10 @@ class TwitchLogin(object):
         use_backup_flow = False
         # use_backup_flow = True
         while True:
-            logger.info("Trying the TV login method..")
+            logger.info(
+                "Trying the TV login method..",
+                extra={"emoji": ":wrench:", "event": Events.LOGIN_FLOW},
+            )
 
             login_response = self.send_oauth_request(
                 "https://id.twitch.tv/oauth2/device", post_data)
@@ -113,13 +121,16 @@ class TwitchLogin(object):
                 expires_at = now + \
                     timedelta(seconds=login_response_json["expires_in"])
                 logger.info(
-                    "Open https://www.twitch.tv/activate"
+                    "Open https://www.twitch.tv/activate",
+                    extra={"emoji": ":wrench:", "event": Events.LOGIN_FLOW},
                 )
                 logger.info(
-                    f"and enter this code: {user_code}"
+                    f"and enter this code: {user_code}",
+                    extra={"emoji": ":wrench:", "event": Events.LOGIN_FLOW},
                 )
                 logger.info(
-                    f"Hurry up! It will expire in {int(login_response_json['expires_in'] / 60)} minutes!"
+                    f"Hurry up! It will expire in {int(login_response_json['expires_in'] / 60)} minutes!",
+                    extra={"emoji": ":wrench:", "event": Events.LOGIN_FLOW},
                 )
                 # twofa = input("2FA token: ")
                 # webbrowser.open_new_tab("https://www.twitch.tv/activate")
@@ -136,7 +147,10 @@ class TwitchLogin(object):
                     login_response = self.send_oauth_request(
                         "https://id.twitch.tv/oauth2/token", post_data)
                     if now == expires_at:
-                        logger.error("Code expired. Try again")
+                        logger.error(
+                            "Code expired. Try again",
+                            extra={"emoji": ":wrench:", "event": Events.LOGIN_FLOW},
+                        )
                         break
                     # 200 means success, 400 means the user haven't entered the code yet
                     if login_response.status_code != 200:
@@ -331,10 +345,12 @@ class TwitchLogin(object):
 
     def get_user_id(self):
         persistent = self.get_cookie_value("persistent")
-        user_id = (
-            int(persistent.split("%")[
-                0]) if persistent is not None else self.user_id
-        )
+        user_id = self.user_id
+        if persistent is not None:
+            persistent_user_id = persistent.split("%", 1)[0]
+            if persistent_user_id.isdigit():
+                user_id = int(persistent_user_id)
+
         if user_id is None:
             if self.__set_user_id() is True:
                 return self.user_id

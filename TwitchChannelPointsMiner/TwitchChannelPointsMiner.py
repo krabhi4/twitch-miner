@@ -406,11 +406,16 @@ class TwitchChannelPointsMiner:
 
                 if ((time.time() - refresh_context) // 60) >= 30:
                     refresh_context = time.time()
-                    for index in range(0, len(self.streamers)):
-                        if self.streamers[index].is_online:
-                            self.twitch.load_channel_points_context(
-                                self.streamers[index]
-                            )
+                    for streamer in self.streamers[:]:
+                        if streamer.is_online:
+                            try:
+                                self.twitch.load_channel_points_context(streamer)
+                            except StreamerDoesNotExistException:
+                                logger.info(
+                                    f"Streamer {streamer.username} does not exist, removing from streamers list",
+                                    extra={"emoji": ":cry:"},
+                                )
+                                self.streamers.remove(streamer)
 
     def end(self, signum, frame):
         if not self.running:
