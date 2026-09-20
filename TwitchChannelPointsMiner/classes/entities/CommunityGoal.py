@@ -28,37 +28,38 @@ class CommunityGoal(object):
         self.status = status
 
     def __eq__(self, other):
-        if isinstance(other, self.__class__):
+        if isinstance(other, CommunityGoal):
             return self.goal_id == other.goal_id
-        else:
-            return False
+        return False
 
     def __repr__(self) -> str:
         return f"CommunityGoal(goal_id: {self.goal_id}, title: {self.title}, is_in_stock: {self.is_in_stock}, points_contributed: {self.points_contributed}, amount_needed: {self.amount_needed}, per_stream_user_maximum_contribution: {self.per_stream_user_maximum_contribution}, status: {self.status})"
 
     def amount_left(self):
-        return self.amount_needed - self.points_contributed
+        needed = self.amount_needed if isinstance(self.amount_needed, (int, float)) else 0
+        contributed = self.points_contributed if isinstance(self.points_contributed, (int, float)) else 0
+        return needed - contributed
 
     @classmethod
     def from_gql(cls, gql_goal):
         return cls(
-            gql_goal["id"],
-            gql_goal["title"],
-            gql_goal["isInStock"],
-            gql_goal["pointsContributed"],
-            gql_goal["amountNeeded"],
-            gql_goal["perStreamUserMaximumContribution"],
-            gql_goal["status"]
+            gql_goal.get("id"),
+            gql_goal.get("title"),
+            gql_goal.get("isInStock", False),
+            gql_goal.get("pointsContributed", 0),
+            gql_goal.get("amountNeeded", 0),
+            gql_goal.get("perStreamUserMaximumContribution", 0),
+            gql_goal.get("status")
         )
 
     @classmethod
     def from_pubsub(cls, pubsub_goal):
         return cls(
-            pubsub_goal["id"],
-            pubsub_goal["title"],
-            pubsub_goal["is_in_stock"],
-            pubsub_goal["points_contributed"],
-            pubsub_goal["goal_amount"],
-            pubsub_goal["per_stream_maximum_user_contribution"],
-            pubsub_goal["status"]
+            pubsub_goal.get("id"),
+            pubsub_goal.get("title"),
+            pubsub_goal.get("is_in_stock", False),
+            pubsub_goal.get("points_contributed", 0),
+            pubsub_goal.get("goal_amount", 0),
+            pubsub_goal.get("per_stream_maximum_user_contribution", 0),
+            pubsub_goal.get("status")
         )

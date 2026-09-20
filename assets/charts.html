@@ -15,7 +15,7 @@
 <body>
     <nav class="topbar" id="header">
         <div class="topbar-left">
-            <a href="https://github.com/krabhi4/twitch-miner" target="_blank"><img width="420" src="{{url_for('static', filename='banner.png')}}" alt="banner"></a>
+            <a href="https://github.com/krabhi4/twitch-miner" target="_blank" rel="noopener noreferrer"><img width="420" src="{{url_for('static', filename='banner.png')}}" alt="banner"></a>
         </div>
         <div class="topbar-right">
             <div class="header-stats" id="overview-stats">
@@ -189,8 +189,10 @@
         }
         localStorage.setItem("dark-mode", darkMode)
     }
-    var refresh = parseInt("{{ refresh }}");
-    var daysAgo = parseInt("{{ daysAgo }}");
+    var refresh = parseInt("{{ refresh }}", 10);
+    var daysAgo = parseInt("{{ daysAgo }}", 10);
+    if (isNaN(refresh) || refresh <= 0) { refresh = 60; }
+    if (isNaN(daysAgo) || daysAgo < 0) { daysAgo = 7; }
 </script>
 <script type="text/javascript" src="{{url_for('static', filename='script.js')}}"></script>
 </body>

@@ -27,7 +27,7 @@ class ChatPresence(Enum):
 class ClientIRC(SingleServerIRCBot):
     def __init__(self, username, token, channel):
         self.token = token
-        self.channel = "#" + channel
+        self.channel = f"#{channel.lstrip('#')}"
         self.__active = False
         ssl_context = ssl.create_default_context()
         ssl_factory = Factory(
@@ -60,7 +60,8 @@ class ClientIRC(SingleServerIRCBot):
 
     def die(self, msg="Bye, cruel world!"):
         self.__active = False
-        self.connection.disconnect(msg)
+        if self.connection is not None:
+            self.connection.disconnect(msg)
 
     """
     def on_join(self, connection, event):
@@ -72,10 +73,11 @@ class ClientIRC(SingleServerIRCBot):
         msg = event.arguments[0]
         mention = None
 
+        nickname = getattr(self, "_nickname", None) or getattr(self, "nickname", None) or getattr(self, "_realname", None) or ""
         if Settings.disable_at_in_nickname is True:
-            mention = f"{self._nickname.lower()}"
+            mention = f"{nickname.lower()}"
         else:
-            mention = f"@{self._nickname.lower()}"
+            mention = f"@{nickname.lower()}"
 
         # also self._realname
         # if msg.startswith(f"@{self._nickname}"):

@@ -79,8 +79,7 @@ class TwitchChannelPointsMiner:
         enable_analytics: bool = False,
         disable_ssl_cert_verification: bool = False,
         disable_at_in_nickname: bool = False,
-        # Settings for logging and selenium as you can see.
-        priority: list = [Priority.STREAK, Priority.DROPS, Priority.ORDER],
+        priority: list = None,
         # This settings will be global shared trought Settings class
         logger_settings: LoggerSettings = LoggerSettings(),
         # Default values for all streamers
@@ -140,7 +139,12 @@ class TwitchChannelPointsMiner:
         self.twitch = Twitch(self.username, user_agent, password)
 
         self.claim_drops_startup = claim_drops_startup
-        self.priority = priority if isinstance(priority, list) else [priority]
+        if priority is None:
+            self.priority = [Priority.STREAK, Priority.DROPS, Priority.ORDER]
+        elif isinstance(priority, list):
+            self.priority = priority
+        else:
+            self.priority = [priority]
 
         self.streamers: list[Streamer] = []
         self.events_predictions = {}
@@ -173,7 +177,7 @@ class TwitchChannelPointsMiner:
             logger.info(f"You are running version {current_version} of this script")
             logger.info(f"The latest version on GitHub is {github_version}")
 
-        for sign in [signal.SIGINT, signal.SIGSEGV, signal.SIGTERM]:
+        for sign in [signal.SIGINT, signal.SIGTERM]:
             signal.signal(sign, self.end)
 
     def analytics(
@@ -204,20 +208,24 @@ class TwitchChannelPointsMiner:
 
     def mine(
         self,
-        streamers: list = [],
-        blacklist: list = [],
+        streamers: list = None,
+        blacklist: list = None,
         followers: bool = False,
         followers_order: FollowersOrder = FollowersOrder.ASC,
     ):
-        self.run(streamers=streamers, blacklist=blacklist, followers=followers)
+        streamers = [] if streamers is None else streamers
+        blacklist = [] if blacklist is None else blacklist
+        self.run(streamers=streamers, blacklist=blacklist, followers=followers, followers_order=followers_order)
 
     def run(
         self,
-        streamers: list = [],
-        blacklist: list = [],
+        streamers: list = None,
+        blacklist: list = None,
         followers: bool = False,
         followers_order: FollowersOrder = FollowersOrder.ASC,
     ):
+        streamers = [] if streamers is None else streamers
+        blacklist = [] if blacklist is None else blacklist
         if self.running:
             logger.error("You can't start multiple sessions of this instance!")
         else:
@@ -261,33 +269,32 @@ class TwitchChannelPointsMiner:
                 extra={"emoji": ":nerd_face:"},
             )
             for username in streamers_name:
-                if username in streamers_name:
-                    time.sleep(random.uniform(0.3, 0.7))
-                    try:
-                        streamer = (
-                            streamers_dict[username]
-                            if isinstance(streamers_dict[username], Streamer) is True
-                            else Streamer(username)
+                time.sleep(random.uniform(0.3, 0.7))
+                try:
+                    streamer = (
+                        streamers_dict[username]
+                        if isinstance(streamers_dict[username], Streamer) is True
+                        else Streamer(username)
+                    )
+                    streamer.channel_id = self.twitch.get_channel_id(username)
+                    streamer.settings = set_default_settings(
+                        streamer.settings, Settings.streamer_settings
+                    )
+                    streamer.settings.bet = set_default_settings(
+                        streamer.settings.bet, Settings.streamer_settings.bet
+                    )
+                    if streamer.settings.chat != ChatPresence.NEVER:
+                        streamer.irc_chat = ThreadChat(
+                            self.username,
+                            self.twitch.twitch_login.get_auth_token(),
+                            streamer.username,
                         )
-                        streamer.channel_id = self.twitch.get_channel_id(username)
-                        streamer.settings = set_default_settings(
-                            streamer.settings, Settings.streamer_settings
-                        )
-                        streamer.settings.bet = set_default_settings(
-                            streamer.settings.bet, Settings.streamer_settings.bet
-                        )
-                        if streamer.settings.chat != ChatPresence.NEVER:
-                            streamer.irc_chat = ThreadChat(
-                                self.username,
-                                self.twitch.twitch_login.get_auth_token(),
-                                streamer.username,
-                            )
-                        self.streamers.append(streamer)
-                    except StreamerDoesNotExistException:
-                        logger.info(
-                            f"Streamer {username} does not exist",
-                            extra={"emoji": ":cry:"},
-                        )
+                    self.streamers.append(streamer)
+                except StreamerDoesNotExistException:
+                    logger.info(
+                        f"Streamer {username} does not exist",
+                        extra={"emoji": ":cry:"},
+                    )
 
             # Populate the streamers with default values.
             # 1. Load channel points and auto-claim bonus
@@ -447,8 +454,8 @@ class TwitchChannelPointsMiner:
         # Prevent breaks of .json file
         for streamer in self.streamers:
             if streamer.mutex.locked():
-                streamer.mutex.acquire()
-                streamer.mutex.release()
+                if streamer.mutex.acquire(timeout=5):
+                    streamer.mutex.release()
 
         self.__print_report()
 

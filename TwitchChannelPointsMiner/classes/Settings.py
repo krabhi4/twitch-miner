@@ -51,4 +51,4 @@ class Events(Enum):
 
     @classmethod
     def get(cls, key):
-        return getattr(cls, str(key)) if str(key) in dir(cls) else None
+        return cls.__members__.get(str(key))

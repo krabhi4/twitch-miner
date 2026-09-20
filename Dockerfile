@@ -1,47 +1,49 @@
-FROM python:3.10-bullseye
+FROM python:3.12-slim-bookworm AS builder
 
-ARG BUILDX_QEMU_ENV
-
-WORKDIR /usr/src/app
+WORKDIR /build
 
 COPY ./requirements.txt ./
 
-ENV CRYPTOGRAPHY_DONT_BUILD_RUST=1
-
-RUN pip install --upgrade pip
-
-RUN apt-get update
-RUN apt-get upgrade -y
-RUN DEBIAN_FRONTEND=noninteractive apt-get install -qq -y --fix-missing --no-install-recommends \
+RUN apt-get update \
+  && DEBIAN_FRONTEND=noninteractive apt-get install -qq -y --no-install-recommends \
     gcc \
+    g++ \
+    make \
     libffi-dev \
-    rustc \
+    libssl-dev \
     zlib1g-dev \
     libjpeg-dev \
-    libssl-dev \
     libblas-dev \
     liblapack-dev \
-    make \
-    cmake \    
-    automake \
-    ninja-build \
-    g++ \
-    subversion \
-    python3-dev \
-    python3.9 \
-    python3.9-dev \
-    python3.9-minimal \
-  && if [ "${BUILDX_QEMU_ENV}" = "true" ] && [ "$(getconf LONG_BIT)" = "32" ]; then \
-        pip install -U cryptography==3.3.2; \
-     fi \
-  && pip install -r requirements.txt \
-  && pip cache purge \
-  && apt-get remove -y gcc rustc \
-  && apt-get autoremove -y \
-  && apt-get autoclean -y \
-  && apt-get clean -y \
-  && rm -rf /var/lib/apt/lists/* \
-  && rm -rf /usr/share/doc/*
+  && pip install --upgrade pip \
+  && pip wheel --no-cache-dir --wheel-dir=/build/wheels -r requirements.txt
 
-ADD ./TwitchChannelPointsMiner ./TwitchChannelPointsMiner
+FROM python:3.12-slim-bookworm
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /usr/src/app
+
+RUN apt-get update \
+  && DEBIAN_FRONTEND=noninteractive apt-get install -qq -y --no-install-recommends \
+    libjpeg62-turbo \
+    zlib1g \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /build/wheels /wheels
+COPY ./requirements.txt ./
+
+RUN pip install --upgrade pip \
+  && pip install --no-cache-dir --no-index --find-links=/wheels -r requirements.txt \
+  && rm -rf /wheels
+
+RUN mkdir -p /usr/src/app/analytics /usr/src/app/cookies /usr/src/app/logs
+
+COPY ./TwitchChannelPointsMiner ./TwitchChannelPointsMiner
+COPY ./assets ./assets
+
 ENTRYPOINT [ "python", "run.py" ]

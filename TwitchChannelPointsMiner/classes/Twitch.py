@@ -145,14 +145,16 @@ class Twitch(object):
             response = main_page_request.text
             # logger.info(response)
             regex_settings = "(https://static.twitchcdn.net/config/settings.*?js|https://assets.twitch.tv/config/settings.*?.js)"
-            settings_url = re.search(regex_settings, response).group(1)
-
-            settings_request = requests.get(settings_url, headers=headers)
-            response = settings_request.text
-            regex_spade = '"spade_url":"(.*?)"'
-            streamer.stream.spade_url = re.search(
-                regex_spade, response).group(1)
-        except requests.exceptions.RequestException as e:
+            settings_match = re.search(regex_settings, response)
+            if settings_match:
+                settings_url = settings_match.group(1)
+                settings_request = requests.get(settings_url, headers=headers)
+                response = settings_request.text
+                regex_spade = '"spade_url":"(.*?)"'
+                spade_match = re.search(regex_spade, response)
+                if spade_match:
+                    streamer.stream.spade_url = spade_match.group(1)
+        except (requests.exceptions.RequestException, AttributeError) as e:
             logger.error(
                 f"Something went wrong during extraction of 'spade_url': {e}")
 
@@ -161,7 +163,8 @@ class Twitch(object):
         json_data["variables"] = {"id": streamer.channel_id}
         response = self.post_gql_request(json_data)
         if response != {}:
-            stream = response["data"]["user"]["stream"]
+            user_data = response.get("data", {}).get("user") if response.get("data") else None
+            stream = user_data.get("stream") if user_data else None
             if stream is not None:
                 return stream["id"]
             else:
@@ -173,10 +176,11 @@ class Twitch(object):
         json_data["variables"] = {"channel": streamer.username}
         response = self.post_gql_request(json_data)
         if response != {}:
-            if response["data"]["user"]["stream"] is None:
+            user_data = response.get("data", {}).get("user") if response.get("data") else None
+            if not user_data or user_data.get("stream") is None:
                 raise StreamerIsOfflineException
             else:
-                return response["data"]["user"]
+                return user_data
 
     def check_streamer_online(self, streamer):
         if time.time() < streamer.offline_at + 60:
@@ -299,8 +303,9 @@ class Twitch(object):
             )
             return response.json()
         except requests.exceptions.RequestException as e:
+            op_name = json_data.get("operationName") if isinstance(json_data, dict) else "batch_request"
             logger.error(
-                f"Error with GQLOperations ({json_data['operationName']}): {e}"
+                f"Error with GQLOperations ({op_name}): {e}"
             )
             return {}
 
@@ -588,9 +593,6 @@ class Twitch(object):
             if community_points["availableClaim"] is not None:
                 self.claim_bonus(
                     streamer, community_points["availableClaim"]["id"])
-
-            if streamer.settings.community_goals is True:
-                self.contribute_to_community_goals(streamer)
 
             if streamer.settings.community_goals is True:
                 self.contribute_to_community_goals(streamer)

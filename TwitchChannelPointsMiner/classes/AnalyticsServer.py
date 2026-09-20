@@ -44,16 +44,23 @@ def aggregate(df, freq="30Min"):
 
 
 def filter_datas(start_date, end_date, datas):
-    start_date = (
-        datetime.strptime(start_date, "%Y-%m-%d").timestamp() * 1000
-        if start_date is not None
-        else 0
-    )
-    end_date = (
-        datetime.strptime(end_date, "%Y-%m-%d")
-        if end_date is not None
-        else datetime.now()
-    ).replace(hour=23, minute=59, second=59).timestamp() * 1000
+    try:
+        start_date = (
+            datetime.strptime(start_date, "%Y-%m-%d").timestamp() * 1000
+            if start_date is not None
+            else 0
+        )
+    except (ValueError, TypeError):
+        start_date = 0
+
+    try:
+        end_date = (
+            datetime.strptime(end_date, "%Y-%m-%d")
+            if end_date is not None
+            else datetime.now()
+        ).replace(hour=23, minute=59, second=59).timestamp() * 1000
+    except (ValueError, TypeError):
+        end_date = datetime.now().replace(hour=23, minute=59, second=59).timestamp() * 1000
 
     original_series = datas.get("series", [])
 
@@ -108,9 +115,11 @@ def read_json(streamer, return_response=True):
         msg = "Analytics not enabled"
         return Response(json.dumps({"error": msg}), status=500, mimetype="application/json") if return_response else {"error": msg}
 
+    streamer = os.path.basename(streamer)
     streamer = streamer if streamer.endswith(".json") else f"{streamer}.json"
+    target_path = os.path.abspath(os.path.join(path, streamer))
 
-    if not os.path.exists(os.path.join(path, streamer)):
+    if not target_path.startswith(os.path.abspath(path)) or not os.path.exists(target_path):
         error_message = f"File '{streamer}' not found."
         logger.error(error_message)
         if return_response:
@@ -119,7 +128,7 @@ def read_json(streamer, return_response=True):
             return {"error": error_message}
 
     try:
-        with open(os.path.join(path, streamer), 'r') as file:
+        with open(target_path, 'r') as file:
             data = json.load(file)
     except json.JSONDecodeError as e:
         error_message = f"Error decoding JSON in file '{streamer}': {str(e)}"
@@ -155,7 +164,7 @@ def json_all():
         json.dumps(
             [
                 {
-                    "name": streamer.strip(".json"),
+                    "name": streamer.removesuffix(".json"),
                     "data": read_json(streamer, return_response=False),
                 }
                 for streamer in streamers_available()
@@ -501,7 +510,10 @@ class AnalyticsServer(Thread):
 
         def generate_log():
             global last_sent_log_index
-            last_received_index = int(request.args.get("lastIndex", last_sent_log_index))
+            try:
+                last_received_index = int(request.args.get("lastIndex", last_sent_log_index))
+            except (ValueError, TypeError):
+                last_received_index = 0
             logs_path = os.path.join(Path().absolute(), "logs")
             log_file_path = os.path.join(logs_path, f"{username}.log")
             try:

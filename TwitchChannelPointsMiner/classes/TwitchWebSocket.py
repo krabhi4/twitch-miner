@@ -1,3 +1,4 @@
+import copy
 import json
 import logging
 import time
@@ -35,10 +36,6 @@ class TwitchWebSocket(WebSocketApp):
         self.last_pong = time.time()
         self.last_ping = time.time()
 
-    # def close(self):
-    #     self.forced_close = True
-    #     super().close()
-
     def listen(self, topic, auth_token=None):
         data = {"topics": [str(topic)]}
         if topic.is_user_topic() and auth_token is not None:
@@ -53,9 +50,15 @@ class TwitchWebSocket(WebSocketApp):
     def send(self, request):
         try:
             request_str = json.dumps(request, separators=(",", ":"))
-            logger.debug(f"#{self.index} - Send: {request_str}")
+            if isinstance(request, dict) and "data" in request and isinstance(request["data"], dict) and "auth_token" in request["data"]:
+                sanitized = copy.deepcopy(request)
+                sanitized["data"]["auth_token"] = "***"
+                logger.debug(f"#{self.index} - Send: {json.dumps(sanitized, separators=(',', ':'))}")
+            else:
+                logger.debug(f"#{self.index} - Send: {request_str}")
             super().send(request_str)
         except WebSocketConnectionClosedException:
+            logger.debug(f"#{self.index} - WebSocket closed while sending")
             self.is_closed = True
 
     def elapsed_last_pong(self):

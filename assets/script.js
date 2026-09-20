@@ -21,8 +21,11 @@ var options = {
         shared: false,
         x: { show: true, format: 'HH:mm:ss dd MMM yyyy' },
         custom: ({series, seriesIndex, dataPointIndex, w}) => {
-            const z = w.globals.seriesZ[seriesIndex]?.[dataPointIndex] || '';
-            return `<div class="apexcharts-active"><div class="apexcharts-tooltip-title">${w.globals.seriesNames[seriesIndex]}</div><div class="apexcharts-tooltip-series-group apexcharts-active" style="order:1;display:flex;padding-bottom:0px !important;"><div class="apexcharts-tooltip-text"><div class="apexcharts-tooltip-y-group"><span class="apexcharts-tooltip-text-label"><b>Points</b>: ${series[seriesIndex][dataPointIndex]}</span><br><span class="apexcharts-tooltip-text-label"><b>Reason</b>: ${z}</span></div></div></div></div>`
+            const z = w.globals.seriesZ && w.globals.seriesZ[seriesIndex] ? (w.globals.seriesZ[seriesIndex][dataPointIndex] || '') : '';
+            const title = escapeHtml(w.globals.seriesNames[seriesIndex] || '');
+            const reason = escapeHtml(z);
+            const points = series[seriesIndex] ? series[seriesIndex][dataPointIndex] : '';
+            return `<div class="apexcharts-active"><div class="apexcharts-tooltip-title">${title}</div><div class="apexcharts-tooltip-series-group apexcharts-active" style="order:1;display:flex;padding-bottom:0px !important;"><div class="apexcharts-tooltip-text"><div class="apexcharts-tooltip-y-group"><span class="apexcharts-tooltip-text-label"><b>Points</b>: ${points}</span><br><span class="apexcharts-tooltip-text-label"><b>Reason</b>: ${reason}</span></div></div></div></div>`;
         }
     },
     noData: { text: 'No data – select a streamer' },
@@ -35,7 +38,8 @@ var streamersList = [];
 var streamersDetails = [];
 var sortBy = "Points descending";
 var sortField = 'points';
-var startDate = new Date(); startDate.setDate(startDate.getDate() - daysAgo);
+var defaultDays = (typeof daysAgo !== 'undefined' && !isNaN(daysAgo)) ? daysAgo : 7;
+var startDate = new Date(); startDate.setDate(startDate.getDate() - defaultDays);
 var endDate = new Date();
 var compareMode = false;
 var selectedCompare = new Set();
@@ -44,6 +48,7 @@ var historyFiltered = [];
 var historyPage = 1; var historyPageSize = 25; var historySortField='x'; var historySortAsc=false;
 var enumsCache = null;
 
+function escapeHtml(s){ if(s==null) return ''; return String(s).replace(/[&<>"']/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])); }
 function millify(n){ if(n==null) return '-'; if(n>=1000000) return (n/1000000).toFixed(1)+'M'; if(n>=1000) return (n/1000).toFixed(1)+'k'; return String(n); }
 function formatDate(d){ const dd=new Date(d); const m=''+(dd.getMonth()+1), day=''+dd.getDate(), y=dd.getFullYear(); return [y, m.padStart(2,'0'), day.padStart(2,'0')].join('-'); }
 function formatDateTime(ts){ return new Date(ts).toLocaleString(); }
@@ -215,7 +220,7 @@ function changeSortBy(option){
 }
 
 function changeStreamer(streamer, index){
-    $("li").removeClass("is-active");
+    $("#streamers-list li").removeClass("is-active");
     currentStreamer = streamer;
     options.title.text = `${streamer.replace(".json","")}'s channel points (UTC)`;
     chart.updateOptions(options);

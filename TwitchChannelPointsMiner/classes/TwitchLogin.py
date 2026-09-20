@@ -47,7 +47,6 @@ class TwitchLogin(object):
         "token",
         "login_check_result",
         "session",
-        "session",
         "username",
         "password",
         "user_id",
@@ -146,7 +145,7 @@ class TwitchLogin(object):
                     sleep(interval)
                     login_response = self.send_oauth_request(
                         "https://id.twitch.tv/oauth2/token", post_data)
-                    if now == expires_at:
+                    if datetime.now(timezone.utc) >= expires_at:
                         logger.error(
                             "Code expired. Try again",
                             extra={"emoji": ":wrench:", "event": Events.LOGIN_FLOW},
@@ -174,13 +173,13 @@ class TwitchLogin(object):
             # ):
                 # raise RequestInvalid()
                     else:
-                        if "error_code" in login_response:
-                            err_code = login_response["error_code"]
-
-                        logger.error(f"Unknown error: {login_response}")
-                        raise NotImplementedError(
-                            f"Unknown TwitchAPI error code: {err_code}"
-                        )
+                        err_code = login_response_json.get("error_code")
+                        logger.error(f"Unknown error: {login_response_json}")
+                        if err_code:
+                            raise NotImplementedError(
+                                f"Unknown TwitchAPI error code: {err_code}"
+                            )
+                        break
 
             if use_backup_flow:
                 break
@@ -327,8 +326,8 @@ class TwitchLogin(object):
         # print(f"cookies_dict2pickle: {cookies_dict}")
         for cookie_name, value in cookies_dict.items():
             self.cookies.append({"name": cookie_name, "value": value})
-        # print(f"cookies2pickle: {self.cookies}")
-        pickle.dump(self.cookies, open(cookies_file, "wb"))
+        with open(cookies_file, "wb") as f:
+            pickle.dump(self.cookies, f)
 
     def get_cookie_value(self, key):
         for cookie in self.cookies:
@@ -339,7 +338,8 @@ class TwitchLogin(object):
 
     def load_cookies(self, cookies_file):
         if os.path.isfile(cookies_file):
-            self.cookies = pickle.load(open(cookies_file, "rb"))
+            with open(cookies_file, "rb") as f:
+                self.cookies = pickle.load(f)
         else:
             raise WrongCookiesException("There must be a cookies file!")
 
