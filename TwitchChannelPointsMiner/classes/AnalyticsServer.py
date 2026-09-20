@@ -277,7 +277,7 @@ def default_global_config():
     except Exception:
         pass
     return {
-        "make_predictions": True,
+        "make_predictions": False,
         "follow_raid": True,
         "claim_drops": True,
         "claim_moments": True,

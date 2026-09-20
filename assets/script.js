@@ -175,7 +175,8 @@ function renderStreamers(){
         const activeClass = isActive ? 'is-active' : '';
         const compareChecked = selectedCompare.has(name) ? 'checked' : '';
         const checkbox = compareMode ? `<input type="checkbox" class="compare-check" data-name="${name}" ${compareChecked} style="margin-right:6px">` : '';
-        const li = `<li class="${activeClass}"><a onClick="handleStreamerClick('${streamer.name}', '${name}'); return false;">${checkbox}${display}<span class="meta" style="margin-left:auto">${streamer.bets ? streamer.bets.win_rate+'% WR' : ''}</span></a></li>`;
+        const wrBadge = (streamer.bets && streamer.bets.placed > 0) ? `<span class="meta" style="margin-left:auto">${streamer.bets.win_rate}% WR</span>` : '';
+        const li = `<li class="${activeClass}"><a onClick="handleStreamerClick('${streamer.name}', '${name}'); return false;">${checkbox}${display}${wrBadge}</a></li>`;
         $("#streamers-list").append(li);
         idx++;
     });

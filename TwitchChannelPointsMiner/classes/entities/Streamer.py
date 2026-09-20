@@ -50,7 +50,6 @@ class StreamerSettings(object):
 
     def default(self):
         for name in [
-            "make_predictions",
             "follow_raid",
             "claim_drops",
             "claim_moments",
@@ -58,6 +57,8 @@ class StreamerSettings(object):
         ]:
             if getattr(self, name) is None:
                 setattr(self, name, True)
+        if self.make_predictions is None:
+            self.make_predictions = False
         if self.community_goals is None:
             self.community_goals = False
         if self.bet is None:
