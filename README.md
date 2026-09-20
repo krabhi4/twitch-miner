@@ -1,6 +1,7 @@
 ![Twitch Channel Points Miner - v2](https://raw.githubusercontent.com/krabhi4/twitch-miner/main/assets/banner.png)
 <p align="center">
 <a href="https://github.com/krabhi4/twitch-miner/releases"><img alt="Latest Version" src="https://img.shields.io/github/v/release/krabhi4/twitch-miner?style=flat&color=white&logo=github&logoColor=white"></a>
+<a href="https://github.com/krabhi4/twitch-miner/pkgs/container/twitch-miner"><img alt="GHCR Package" src="https://img.shields.io/badge/GHCR-docker%20image-blue?style=flat&logo=docker&logoColor=white"></a>
 <a href="https://github.com/krabhi4/twitch-miner/stargazers"><img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/krabhi4/twitch-miner?style=flat&color=limegreen&logo=github&logoColor=white"></a>
 <a href="https://github.com/krabhi4/twitch-miner/network/members"><img alt="GitHub forks" src="https://img.shields.io/github/forks/krabhi4/twitch-miner?style=flat&color=blue&logo=github&logoColor=white"></a>
 <a href="https://github.com/krabhi4/twitch-miner/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/krabhi4/twitch-miner?style=flat&color=purple&logo=github&logoColor=white"></a>
@@ -345,7 +346,13 @@ Start mining! `python example.py` 🥳
 
 ### Docker
 
-You can run the miner using Docker:
+You can pull the prebuilt image from GitHub Container Registry (GHCR):
+
+```sh
+docker pull ghcr.io/krabhi4/twitch-miner:latest
+```
+
+Or build the image locally:
 
 ```sh
 docker build -t twitch-miner .
@@ -368,8 +375,7 @@ version: "3.9"
 
 services:
   miner:
-    build: .
-    image: twitch-miner
+    image: ghcr.io/krabhi4/twitch-miner:latest
     stdin_open: true
     tty: true
     environment:
@@ -391,12 +397,12 @@ docker run \
     -v $(pwd)/logs:/usr/src/app/logs \
     -v $(pwd)/run.py:/usr/src/app/run.py:ro \
     -p 5000:5000 \
-    twitch-miner
+    ghcr.io/krabhi4/twitch-miner:latest
 ```
 
 `$(pwd)` could not work on Windows (cmd), please use the absolute path instead, like: `/path/of/your/cookies:/usr/src/app/cookies`.
 
-The correct solution for Windows lies in the correct command line: `docker run -v C:\Absolute\Path\To\twitch-miner\run.py:/usr/src/app/run.py:ro twitch-miner`.
+The correct solution for Windows lies in the correct command line: `docker run -v C:\Absolute\Path\To\twitch-miner\run.py:/usr/src/app/run.py:ro ghcr.io/krabhi4/twitch-miner:latest`.
 
 `run.py` MUST be mounted as a volume (`-v`).
 
@@ -405,11 +411,11 @@ If you don't mount the volume for the analytics (or cookies or logs) folder, the
 If you don't have a cookie or it's your first time running the script, you will need to login to Twitch and start the container with `-it` args. If you need to run multiple containers you can bind different ports (only if you need also the analytics) and mount different run.py files, like
 
 ```sh
-docker run --name user1 -v $(pwd)/user1.py:/usr/src/app/run.py:ro -p 5001:5000 twitch-miner
+docker run --name user1 -v $(pwd)/user1.py:/usr/src/app/run.py:ro -p 5001:5000 ghcr.io/krabhi4/twitch-miner:latest
 ```
 
 ```sh
-docker run --name user2 -v $(pwd)/user2.py:/usr/src/app/run.py:ro -p 5002:5000 twitch-miner
+docker run --name user2 -v $(pwd)/user2.py:/usr/src/app/run.py:ro -p 5002:5000 ghcr.io/krabhi4/twitch-miner:latest
 ```
 
 #### Portainer
