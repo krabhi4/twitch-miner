@@ -306,6 +306,8 @@ def compute_streamer_stats(streamer_file, username=None):
 
     if not series:
         return {
+            "name": streamer_file.replace(".json", ""),
+            "file": streamer_file,
             "points": 0,
             "last_activity": 0,
             "total_gained": 0,
