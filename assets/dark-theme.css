@@ -45,3 +45,28 @@ body {
   background: #090a0f;
   color: #e2e8f0;
 }
+
+.apexcharts-menu {
+  background: #1e2230 !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5) !important;
+  color: #f3f4f6 !important;
+}
+
+.apexcharts-menu-item {
+  color: #f3f4f6 !important;
+}
+
+.apexcharts-menu-item:hover {
+  background: rgba(145, 70, 255, 0.22) !important;
+  color: #ffffff !important;
+}
+
+.apexcharts-toolbar svg {
+  fill: #9ca3af !important;
+}
+
+.apexcharts-toolbar svg:hover {
+  fill: #f3f4f6 !important;
+}

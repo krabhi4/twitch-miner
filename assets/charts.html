@@ -14,58 +14,62 @@
 </head>
 <body>
     <header class="topbar" id="header">
-        <div class="topbar-left">
-            <a href="https://github.com/krabhi4/twitch-miner" class="brand" target="_blank" rel="noopener noreferrer" title="Twitch Channel Points Miner v2">
-                <div class="brand-badge-icon">
-                    <i class="fa-brands fa-twitch"></i>
+        <div class="topbar-inner">
+            <div class="topbar-left">
+                <a href="https://github.com/krabhi4/twitch-miner" class="brand" target="_blank" rel="noopener noreferrer" title="Twitch Channel Points Miner v2">
+                    <div class="brand-badge-icon">
+                        <i class="fa-brands fa-twitch"></i>
+                    </div>
+                    <div class="brand-text">
+                        <span class="brand-name">Twitch Miner</span>
+                        <span class="brand-pill">v2</span>
+                    </div>
+                </a>
+            </div>
+            <div class="header-stats" id="overview-stats">
+                <div class="stat-pill" title="Total streamers tracked">
+                    <i class="fa-solid fa-users"></i>
+                    <span class="stat-num" id="stat-streamers">-</span>
+                    <span class="stat-dim">streamers</span>
                 </div>
-                <div class="brand-text">
-                    <span class="brand-name">Twitch Miner</span>
-                    <span class="brand-pill">v2</span>
+                <div class="stat-pill" title="Total channel points">
+                    <i class="fa-solid fa-coins"></i>
+                    <span class="stat-num" id="stat-points">-</span>
                 </div>
-            </a>
-        </div>
-        <div class="header-stats" id="overview-stats">
-            <div class="stat-pill" title="Total streamers tracked">
-                <i class="fa-solid fa-users"></i>
-                <span class="stat-num" id="stat-streamers">-</span>
-                <span class="stat-dim">streamers</span>
+                <div class="stat-pill" title="Total channel points gained">
+                    <i class="fa-solid fa-arrow-trend-up"></i>
+                    <span class="stat-num stat-green">+<span id="stat-gained">-</span></span>
+                </div>
+                <div class="stat-pill" title="Overall prediction win rate">
+                    <i class="fa-solid fa-trophy"></i>
+                    <span class="stat-num"><span id="stat-winrate">-</span>% WR</span>
+                </div>
             </div>
-            <div class="stat-pill" title="Total channel points">
-                <i class="fa-solid fa-coins"></i>
-                <span class="stat-num" id="stat-points">-</span>
+            <div class="topbar-right">
+                <label class="theme-toggle" title="Toggle theme">
+                    <input type="checkbox" checked id="dark-mode">
+                    <span class="theme-toggle-slider">
+                        <i class="fa-solid fa-moon icon-dark"></i>
+                        <i class="fa-solid fa-sun icon-light"></i>
+                    </span>
+                </label>
+                <a href="/logs" class="btn-action" target="_blank" title="Live application logs">
+                    <i class="fa-solid fa-file-lines"></i>
+                    <span>Logs</span>
+                </a>
+                <a href="https://github.com/krabhi4/twitch-miner" target="_blank" rel="noopener noreferrer" class="btn-action-icon" title="GitHub repository">
+                    <i class="fa-brands fa-github"></i>
+                </a>
             </div>
-            <div class="stat-pill" title="Total channel points gained">
-                <i class="fa-solid fa-arrow-trend-up"></i>
-                <span class="stat-num stat-green">+<span id="stat-gained">-</span></span>
-            </div>
-            <div class="stat-pill" title="Overall prediction win rate">
-                <i class="fa-solid fa-trophy"></i>
-                <span class="stat-num"><span id="stat-winrate">-</span>% WR</span>
-            </div>
-        </div>
-        <div class="topbar-right">
-            <label class="theme-toggle" title="Toggle theme">
-                <input type="checkbox" checked id="dark-mode">
-                <span class="theme-toggle-slider">
-                    <i class="fa-solid fa-moon icon-dark"></i>
-                    <i class="fa-solid fa-sun icon-light"></i>
-                </span>
-            </label>
-            <a href="/logs" class="btn-action" target="_blank" title="Live application logs">
-                <i class="fa-solid fa-file-lines"></i>
-                <span>Logs</span>
-            </a>
-            <a href="https://github.com/krabhi4/twitch-miner" target="_blank" rel="noopener noreferrer" class="btn-action-icon" title="GitHub repository">
-                <i class="fa-brands fa-github"></i>
-            </a>
         </div>
     </header>
 
     <nav class="tabs-nav">
-        <button class="tab-btn active" data-tab="dashboard"><i class="fa-solid fa-chart-line"></i> Dashboard</button>
-        <button class="tab-btn" data-tab="history"><i class="fa-solid fa-clock-rotate-left"></i> Bet History</button>
-        <button class="tab-btn" data-tab="config"><i class="fa-solid fa-sliders"></i> Settings</button>
+        <div class="tabs-inner">
+            <button class="tab-btn active" data-tab="dashboard"><i class="fa-solid fa-chart-line"></i> Dashboard</button>
+            <button class="tab-btn" data-tab="history"><i class="fa-solid fa-clock-rotate-left"></i> Bet History</button>
+            <button class="tab-btn" data-tab="config"><i class="fa-solid fa-sliders"></i> Settings</button>
+        </div>
     </nav>
 
     <div id="tab-dashboard" class="tab-pane active">

@@ -1,4 +1,5 @@
 :root {
+  --max-content-width: 1440px;
   --bg: #f8fafc;
   --panel: #ffffff;
   --panel-elevated: #f1f5f9;
@@ -53,12 +54,19 @@ a:hover {
 }
 
 .topbar {
+  width: 100%;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+}
+
+.topbar-inner {
+  max-width: var(--max-content-width);
+  margin: 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 20px;
-  background: var(--panel);
-  border-bottom: 1px solid var(--border);
+  padding: 10px 0;
   gap: 16px;
   flex-wrap: wrap;
 }
@@ -86,6 +94,7 @@ a:hover {
   color: #ffffff;
   font-size: 18px;
   box-shadow: 0 2px 8px rgba(145, 70, 255, 0.35);
+  flex-shrink: 0;
 }
 
 .brand-text {
@@ -99,6 +108,7 @@ a:hover {
   font-weight: 700;
   letter-spacing: -0.01em;
   color: var(--text);
+  white-space: nowrap;
 }
 
 .brand-pill {
@@ -162,6 +172,7 @@ a:hover {
   width: 44px;
   height: 24px;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .theme-toggle input {
@@ -228,6 +239,7 @@ a:hover {
   font-size: 13px;
   font-weight: 500;
   transition: all 0.15s ease;
+  white-space: nowrap;
 }
 
 .btn-action:hover {
@@ -248,6 +260,7 @@ a:hover {
   border-radius: var(--radius-sm);
   font-size: 15px;
   transition: all 0.15s ease;
+  flex-shrink: 0;
 }
 
 .btn-action-icon:hover {
@@ -256,12 +269,24 @@ a:hover {
 }
 
 .tabs-nav {
-  display: flex;
-  gap: 4px;
+  width: 100%;
   background: var(--panel);
   border-bottom: 1px solid var(--border);
-  padding: 0 16px;
+  padding: 0 24px;
+}
+
+.tabs-inner {
+  max-width: var(--max-content-width);
+  margin: 0 auto;
+  display: flex;
+  gap: 4px;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.tabs-inner::-webkit-scrollbar {
+  display: none;
 }
 
 .tab-btn {
@@ -292,7 +317,10 @@ a:hover {
 
 .tab-pane {
   display: none;
-  padding: 16px 20px;
+  max-width: var(--max-content-width);
+  margin: 0 auto;
+  padding: 18px 24px 36px 24px;
+  width: 100%;
 }
 
 .tab-pane.active {
@@ -387,6 +415,7 @@ a:hover {
   font-weight: 500;
   border-right: 1px solid var(--border);
   transition: all 0.15s ease;
+  white-space: nowrap;
 }
 
 .preset-btn:last-child {
@@ -471,6 +500,7 @@ a:hover {
   align-items: center;
   gap: 6px;
   transition: all 0.15s ease;
+  white-space: nowrap;
 }
 
 .btn-small:hover {
@@ -506,6 +536,7 @@ a:hover {
   cursor: pointer;
   user-select: none;
   color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .toggle:hover {
@@ -522,12 +553,6 @@ a:hover {
   grid-template-columns: 290px 1fr;
   gap: 16px;
   align-items: start;
-}
-
-@media (max-width: 960px) {
-  .dashboard-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 .streamers-panel {
@@ -633,6 +658,7 @@ a:hover {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  min-width: 0;
 }
 
 .chart-header {
@@ -671,6 +697,7 @@ a:hover {
   border-radius: var(--radius-md);
   padding: 14px;
   box-shadow: var(--shadow-sm);
+  min-width: 0;
 }
 
 .chart-box {
@@ -749,8 +776,10 @@ a:hover {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  overflow: auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   box-shadow: var(--shadow-sm);
+  width: 100%;
 }
 
 .history-table {
@@ -813,6 +842,7 @@ a:hover {
   gap: 6px;
   justify-content: center;
   margin-top: 14px;
+  flex-wrap: wrap;
 }
 
 .pagination button {
@@ -996,4 +1026,238 @@ a:hover {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-dim);
+}
+
+@media (max-width: 1024px) {
+  .topbar {
+    padding: 0 16px;
+  }
+  .tabs-nav {
+    padding: 0 16px;
+  }
+  .tab-pane {
+    padding: 16px 16px 32px 16px;
+  }
+  .dashboard-grid {
+    grid-template-columns: 260px 1fr;
+    gap: 14px;
+  }
+}
+
+@media (max-width: 860px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+  .streamers-panel {
+    max-height: 240px;
+  }
+  .controls-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .control-group {
+    width: 100%;
+  }
+  .control-group.right {
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .dropdown {
+    flex: 1;
+  }
+  .dropdown .button {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .search-box {
+    flex: 1;
+  }
+  .search-box input {
+    width: 100%;
+  }
+  .preset-group {
+    flex: 1;
+  }
+  .preset-btn {
+    flex: 1;
+    text-align: center;
+    padding: 6px 4px;
+  }
+  .date-input {
+    flex: 1;
+    width: auto;
+  }
+  #agg-select {
+    flex: 1;
+  }
+}
+
+@media (max-width: 640px) {
+  .topbar {
+    padding: 0 12px;
+  }
+  .topbar-inner {
+    padding: 8px 0;
+    gap: 10px;
+  }
+  .header-stats {
+    order: 3;
+    width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 6px;
+  }
+  .header-stats::-webkit-scrollbar {
+    display: none;
+  }
+  .stat-pill {
+    font-size: 11px;
+    padding: 4px 8px;
+    flex-shrink: 0;
+  }
+  .tabs-nav {
+    padding: 0 12px;
+  }
+  .tab-pane {
+    padding: 12px 12px 28px 12px;
+  }
+  .tab-btn {
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+  .brand-name {
+    font-size: 14px;
+  }
+  .brand-badge-icon {
+    width: 28px;
+    height: 28px;
+    font-size: 15px;
+  }
+  .btn-action {
+    padding: 5px 8px;
+    font-size: 12px;
+  }
+  .chart-box {
+    min-height: 320px;
+  }
+  .chart-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  .chart-stats {
+    width: 100%;
+  }
+  .gain-breakdown {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+  #log-box pre {
+    max-height: 240px;
+    font-size: 11px;
+    padding: 8px;
+  }
+  .history-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .history-controls .control-group {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+  .history-summary {
+    margin-left: 0;
+    width: 100%;
+    font-size: 11px;
+  }
+  .history-table th, .history-table td {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .card-header-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .add-streamer-row {
+    width: 100%;
+  }
+  .add-streamer-row input {
+    flex: 1;
+  }
+}
+
+.apexcharts-menu {
+  background: var(--panel-elevated) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-md) !important;
+  padding: 5px !important;
+  color: var(--text) !important;
+}
+
+.apexcharts-menu-item {
+  color: var(--text) !important;
+  font-family: inherit !important;
+  font-size: 12px !important;
+  padding: 7px 12px !important;
+  border-radius: var(--radius-sm) !important;
+  cursor: pointer !important;
+  transition: background 0.12s ease, color 0.12s ease !important;
+}
+
+.apexcharts-menu-item:hover {
+  background: var(--accent-soft) !important;
+  color: var(--accent) !important;
+}
+
+.apexcharts-toolbar {
+  z-index: 10;
+}
+
+.apexcharts-toolbar svg {
+  fill: var(--text-muted) !important;
+  transition: fill 0.15s ease !important;
+}
+
+.apexcharts-toolbar svg:hover {
+  fill: var(--text) !important;
+}
+
+.apexcharts-toolbar .apexcharts-selected svg {
+  fill: var(--accent) !important;
+}
+
+.apexcharts-tooltip {
+  background: var(--panel-elevated) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: var(--shadow-md) !important;
+  border-radius: var(--radius-md) !important;
+  color: var(--text) !important;
+}
+
+.apexcharts-tooltip-title {
+  background: var(--panel) !important;
+  border-bottom: 1px solid var(--border) !important;
+  font-family: inherit !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: var(--text) !important;
+}
+
+.apexcharts-xaxistooltip, .apexcharts-yaxistooltip {
+  background: var(--panel-elevated) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text) !important;
+  border-radius: var(--radius-sm) !important;
 }

@@ -7,7 +7,7 @@ from pathlib import Path
 from threading import Thread
 
 import pandas as pd
-from flask import Flask, Response, cli, render_template, request
+from flask import Flask, Response, cli, render_template, request, send_from_directory
 
 from TwitchChannelPointsMiner.classes.Settings import Settings
 from TwitchChannelPointsMiner.utils import download_file
@@ -469,6 +469,7 @@ def download_assets(assets_folder, required_files):
 def check_assets():
     required_files = [
         "charts.html",
+        "logs.html",
         "script.js",
         "style.css",
         "dark-theme.css",
@@ -517,6 +518,11 @@ class AnalyticsServer(Thread):
             log_file_path = os.path.join(logs_path, f"{username}.log")
             if not os.path.isfile(log_file_path):
                 return Response("Log file not found.", status=404, mimetype="text/plain")
+            if request.args.get("raw") == "true":
+                try:
+                    return send_from_directory(logs_path, f"{username}.log", mimetype="text/plain")
+                except Exception as e:
+                    logger.error(f"Error serving raw log: {e}")
             try:
                 file_size = os.path.getsize(log_file_path)
                 with open(log_file_path, "r", encoding="utf-8", errors="replace") as log_file:
@@ -537,6 +543,11 @@ class AnalyticsServer(Thread):
             except Exception as e:
                 logger.error(f"Error reading log file {log_file_path}: {e}")
                 return Response("Error reading log file.", status=500, mimetype="text/plain")
+
+        def logs_view():
+            if request.args.get("raw") == "true" or ("text/plain" in request.headers.get("Accept", "") and "text/html" not in request.headers.get("Accept", "")):
+                return generate_log()
+            return render_template("logs.html")
 
         def api_config_get():
             saved = load_config_file(username)
@@ -765,6 +776,8 @@ class AnalyticsServer(Thread):
                               json_all, methods=["GET"])
         self.app.add_url_rule(
             "/log", "log", generate_log, methods=["GET"])
+        self.app.add_url_rule(
+            "/logs", "logs", logs_view, methods=["GET"])
         self.app.add_url_rule("/api/config", "api_config_get", api_config_get, methods=["GET"])
         self.app.add_url_rule("/api/config", "api_config_put", api_config_put, methods=["PUT"])
         self.app.add_url_rule("/api/config/streamer/<string:name>", "api_streamer_put", api_streamer_put, methods=["PUT"])

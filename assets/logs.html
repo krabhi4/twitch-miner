@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Live Logs - Twitch Miner</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="https://static.twitchcdn.net/assets/favicon-32-e29e246c157142c94346.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="https://static.twitchcdn.net/assets/favicon-16-52e571ffea063af7a7f4.png">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet" />
+    <style>
+        :root {
+            --bg: #0e1017;
+            --panel: #161922;
+            --border: rgba(255, 255, 255, 0.08);
+            --text: #f3f4f6;
+            --muted: #9ca3af;
+            --accent: #9146ff;
+            --accent-hover: #772ce8;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --radius: 8px;
+        }
+        * {
+            box-sizing: border-box;
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+        .logs-header {
+            background: var(--panel);
+            border-bottom: 1px solid var(--border);
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            flex-shrink: 0;
+        }
+        .brand-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            color: var(--text);
+            font-weight: 700;
+            font-size: 15px;
+        }
+        .brand-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: var(--radius);
+            background: linear-gradient(135deg, #9146ff, #772ce8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            font-size: 16px;
+        }
+        .status-badge {
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 12px;
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--success);
+            text-transform: uppercase;
+        }
+        .status-badge.paused {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning);
+        }
+        .actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 6px 12px;
+            border-radius: var(--radius);
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+        }
+        .btn:hover {
+            border-color: var(--accent);
+            background: rgba(145, 70, 255, 0.15);
+            color: var(--text);
+        }
+        .btn-primary {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #ffffff;
+            font-weight: 600;
+        }
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            border-color: var(--accent-hover);
+        }
+        .toggle {
+            font-size: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            color: var(--muted);
+            user-select: none;
+            white-space: nowrap;
+        }
+        .toggle input {
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+        .logs-main {
+            flex: 1;
+            padding: 14px 20px 18px 20px;
+            display: flex;
+            overflow: hidden;
+            min-height: 0;
+            max-width: 1440px;
+            width: 100%;
+            margin: 0 auto;
+        }
+        #log-terminal {
+            flex: 1;
+            margin: 0;
+            padding: 16px;
+            background: #08090d;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            color: #e2e8f0;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 12px;
+            line-height: 1.48;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        ::-webkit-scrollbar {
+            width: 7px;
+            height: 7px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+        @media (max-width: 640px) {
+            .logs-header {
+                padding: 8px 12px;
+                gap: 8px;
+            }
+            .logs-main {
+                padding: 8px 10px 12px 10px;
+            }
+            .btn {
+                padding: 5px 8px;
+                font-size: 12px;
+            }
+            #log-terminal {
+                padding: 10px;
+                font-size: 11px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="logs-header">
+        <a href="/" class="brand-link">
+            <div class="brand-icon">
+                <i class="fa-brands fa-twitch"></i>
+            </div>
+            <span>Twitch Miner Logs</span>
+            <span class="status-badge" id="live-status">LIVE</span>
+        </a>
+        <div class="actions">
+            <label class="toggle">
+                <input type="checkbox" checked id="auto-scroll"> Auto-scroll
+            </label>
+            <button class="btn" id="btn-toggle">
+                <i class="fa-solid fa-pause"></i>
+                <span id="btn-toggle-label">Pause</span>
+            </button>
+            <button class="btn" id="btn-clear">
+                <i class="fa-solid fa-eraser"></i> Clear
+            </button>
+            <a href="/log?raw=true" class="btn" target="_blank">
+                <i class="fa-solid fa-download"></i> Raw Log
+            </a>
+            <a href="/" class="btn btn-primary">
+                <i class="fa-solid fa-arrow-left"></i> Dashboard
+            </a>
+        </div>
+    </header>
+    <main class="logs-main">
+        <pre id="log-terminal">Connecting to log stream...</pre>
+    </main>
+    <script>
+        let offset = 0;
+        let active = true;
+        let timer = null;
+        const terminal = document.getElementById('log-terminal');
+        const statusEl = document.getElementById('live-status');
+        const toggleBtn = document.getElementById('btn-toggle');
+        const toggleLabel = document.getElementById('btn-toggle-label');
+        const toggleIcon = toggleBtn.querySelector('i');
+        const clearBtn = document.getElementById('btn-clear');
+        const autoScrollCheck = document.getElementById('auto-scroll');
+
+        function poll() {
+            if (!active) return;
+            fetch('/log?lastIndex=' + offset)
+                .then(res => {
+                    const off = res.headers.get('X-Log-Offset');
+                    if (off !== null) offset = parseInt(off, 10);
+                    return res.text();
+                })
+                .then(text => {
+                    if (text) {
+                        if (terminal.innerText === 'Connecting to log stream...') {
+                            terminal.innerText = '';
+                        }
+                        terminal.innerText += text;
+                        if (terminal.innerText.length > 400000) {
+                            terminal.innerText = terminal.innerText.slice(-200000);
+                        }
+                        if (autoScrollCheck.checked) {
+                            terminal.scrollTop = terminal.scrollHeight;
+                        }
+                    }
+                    if (active) {
+                        timer = setTimeout(poll, 1500);
+                    }
+                })
+                .catch(() => {
+                    if (active) {
+                        timer = setTimeout(poll, 4000);
+                    }
+                });
+        }
+
+        toggleBtn.addEventListener('click', () => {
+            active = !active;
+            if (active) {
+                toggleIcon.className = 'fa-solid fa-pause';
+                toggleLabel.innerText = 'Pause';
+                statusEl.innerText = 'LIVE';
+                statusEl.className = 'status-badge';
+                poll();
+            } else {
+                toggleIcon.className = 'fa-solid fa-play';
+                toggleLabel.innerText = 'Resume';
+                statusEl.innerText = 'PAUSED';
+                statusEl.className = 'status-badge paused';
+                clearTimeout(timer);
+            }
+        });
+
+        clearBtn.addEventListener('click', () => {
+            terminal.innerText = '';
+        });
+
+        poll();
+    </script>
+</body>
+</html>
