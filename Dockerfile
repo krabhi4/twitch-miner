@@ -51,5 +51,7 @@ RUN mkdir -p /usr/src/app/analytics /usr/src/app/cookies /usr/src/app/logs
 
 COPY ./TwitchChannelPointsMiner ./TwitchChannelPointsMiner
 COPY ./assets ./assets
+COPY ./entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
 
-ENTRYPOINT [ "python", "run.py" ]
+ENTRYPOINT [ "/usr/src/app/entrypoint.sh" ]

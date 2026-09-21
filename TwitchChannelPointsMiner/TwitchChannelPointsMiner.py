@@ -283,19 +283,32 @@ class TwitchChannelPointsMiner:
                     from TwitchChannelPointsMiner.classes.AnalyticsServer import (
                         load_config_file,
                     )
+                    from TwitchChannelPointsMiner.utils import (
+                        apply_streamer_settings_dict,
+                        parse_priority_list,
+                    )
 
                     saved_cfg = load_config_file(self.username)
-                    if saved_cfg and isinstance(saved_cfg.get("streamers"), dict):
-                        saved_streamers_cfg = saved_cfg["streamers"]
-                        for saved_name in saved_streamers_cfg.keys():
-                            saved_name = saved_name.lower().strip()
-                            if (
-                                saved_name
-                                and saved_name not in streamers_dict
-                                and saved_name not in blacklist
-                            ):
-                                streamers_name.append(saved_name)
-                                streamers_dict[saved_name] = saved_name
+                    if saved_cfg:
+                        if isinstance(saved_cfg.get("global"), dict):
+                            apply_streamer_settings_dict(
+                                Settings.streamer_settings, saved_cfg["global"]
+                            )
+                        if isinstance(saved_cfg.get("priority"), list):
+                            p_list = parse_priority_list(saved_cfg["priority"])
+                            if p_list:
+                                self.priority = p_list
+                        if isinstance(saved_cfg.get("streamers"), dict):
+                            saved_streamers_cfg = saved_cfg["streamers"]
+                            for saved_name in saved_streamers_cfg.keys():
+                                saved_name = saved_name.lower().strip()
+                                if (
+                                    saved_name
+                                    and saved_name not in streamers_dict
+                                    and saved_name not in blacklist
+                                ):
+                                    streamers_name.append(saved_name)
+                                    streamers_dict[saved_name] = saved_name
                 except Exception as e:
                     logger.error(f"Failed to load streamers from config: {e}")
 

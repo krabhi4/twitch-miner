@@ -220,30 +220,73 @@ def is_docker_run_py() -> bool:
     env_override = os.environ.get("DOCKER_RUN_PY")
     if env_override is not None:
         return env_override.lower() in ("1", "true", "yes")
-    return is_docker() and (
-        os.path.isfile("run.py")
-        or os.path.isfile("/usr/src/app/run.py")
-        or any(arg.endswith("run.py") for arg in sys.argv)
-    )
+    if not is_docker():
+        return False
+    if os.path.isfile("run.py") or os.path.isfile("/usr/src/app/run.py"):
+        return True
+    return any(os.path.basename(arg) == "run.py" for arg in sys.argv)
 
 
-def apply_settings_dict_to_streamer(streamer, data: dict):
-    if (
-        not streamer
-        or not data
-        or not hasattr(streamer, "settings")
-        or not streamer.settings
-    ):
+def apply_bet_settings_dict(blive, b: dict):
+    if not blive or not b or not isinstance(b, dict):
         return
-    from TwitchChannelPointsMiner.classes.Chat import ChatPresence
     from TwitchChannelPointsMiner.classes.entities.Bet import (
-        BetSettings,
         Condition,
         DelayMode,
         FilterCondition,
         OutcomeKeys,
         Strategy,
     )
+
+    for kb in [
+        "percentage",
+        "percentage_gap",
+        "max_points",
+        "minimum_points",
+        "stealth_mode",
+        "delay",
+    ]:
+        if kb in b and b[kb] is not None:
+            setattr(blive, kb, b[kb])
+    if "strategy" in b and b["strategy"]:
+        try:
+            blive.strategy = Strategy[b["strategy"]]
+        except Exception:
+            pass
+    if "delay_mode" in b and b["delay_mode"]:
+        try:
+            blive.delay_mode = DelayMode[b["delay_mode"]]
+        except Exception:
+            pass
+    if "filter_condition" in b:
+        fc = b["filter_condition"]
+        if fc is None:
+            blive.filter_condition = None
+        else:
+            try:
+                cond = FilterCondition(
+                    by=(
+                        OutcomeKeys[fc["by"]]
+                        if fc.get("by") and hasattr(OutcomeKeys, fc["by"])
+                        else fc.get("by")
+                    ),
+                    where=(
+                        Condition[fc["where"]]
+                        if fc.get("where") and hasattr(Condition, fc["where"])
+                        else fc.get("where")
+                    ),
+                    value=fc.get("value"),
+                )
+                blive.filter_condition = cond
+            except Exception:
+                pass
+
+
+def apply_streamer_settings_dict(settings, data: dict):
+    if not settings or not data or not isinstance(data, dict):
+        return
+    from TwitchChannelPointsMiner.classes.Chat import ChatPresence
+    from TwitchChannelPointsMiner.classes.entities.Bet import BetSettings
 
     for k in [
         "make_predictions",
@@ -254,59 +297,46 @@ def apply_settings_dict_to_streamer(streamer, data: dict):
         "community_goals",
     ]:
         if k in data and data[k] is not None:
-            setattr(streamer.settings, k, data[k])
+            setattr(settings, k, data[k])
 
     if "chat" in data and data["chat"]:
         try:
-            streamer.settings.chat = ChatPresence[data["chat"]]
+            settings.chat = ChatPresence[data["chat"]]
         except Exception:
             pass
 
     if "bet" in data and data["bet"]:
-        b = data["bet"]
-        blive = streamer.settings.bet
+        blive = getattr(settings, "bet", None)
         if blive is None:
             blive = BetSettings()
-            streamer.settings.bet = blive
-        for kb in [
-            "percentage",
-            "percentage_gap",
-            "max_points",
-            "minimum_points",
-            "stealth_mode",
-            "delay",
-        ]:
-            if kb in b and b[kb] is not None:
-                setattr(blive, kb, b[kb])
-        if "strategy" in b and b["strategy"]:
-            try:
-                blive.strategy = Strategy[b["strategy"]]
-            except Exception:
-                pass
-        if "delay_mode" in b and b["delay_mode"]:
-            try:
-                blive.delay_mode = DelayMode[b["delay_mode"]]
-            except Exception:
-                pass
-        if "filter_condition" in b:
-            fc = b["filter_condition"]
-            if fc is None:
-                blive.filter_condition = None
-            else:
-                try:
-                    cond = FilterCondition(
-                        by=(
-                            OutcomeKeys[fc["by"]]
-                            if fc.get("by") and hasattr(OutcomeKeys, fc["by"])
-                            else fc.get("by")
-                        ),
-                        where=(
-                            Condition[fc["where"]]
-                            if fc.get("where") and hasattr(Condition, fc["where"])
-                            else fc.get("where")
-                        ),
-                        value=fc.get("value"),
-                    )
-                    blive.filter_condition = cond
-                except Exception:
-                    pass
+            settings.bet = blive
+        apply_bet_settings_dict(blive, data["bet"])
+
+
+def apply_settings_dict_to_streamer(streamer, data: dict):
+    if (
+        not streamer
+        or not data
+        or not hasattr(streamer, "settings")
+        or not streamer.settings
+    ):
+        return
+    apply_streamer_settings_dict(streamer.settings, data)
+
+
+def parse_priority_list(items):
+    if not items or not isinstance(items, list):
+        return None
+    from TwitchChannelPointsMiner.classes.Settings import Priority
+
+    res = []
+    for it in items:
+        if isinstance(it, Priority):
+            if it not in res:
+                res.append(it)
+            continue
+        val = str(it).upper().replace("PRIORITY.", "").strip()
+        p = getattr(Priority, val, None)
+        if p and p not in res:
+            res.append(p)
+    return res if res else None
