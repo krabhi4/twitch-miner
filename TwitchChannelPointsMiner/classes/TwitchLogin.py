@@ -11,6 +11,7 @@ import pickle
 # import webbrowser
 # import browser_cookie3
 
+import json
 import requests
 
 from TwitchChannelPointsMiner.classes.Exceptions import (
