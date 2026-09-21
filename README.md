@@ -244,7 +244,7 @@ twitch_miner = TwitchChannelPointsMiner(
             endpoint="https://example.com/message?token=TOKEN",
             priority=8,
             events=[Events.STREAMER_ONLINE, Events.STREAMER_OFFLINE,
-                    Events.BET_LOSE, Events.CHAT_MENTION], 
+                    Events.BET_LOSE, Events.CHAT_MENTION],
         )
     ),
     streamer_settings=StreamerSettings(

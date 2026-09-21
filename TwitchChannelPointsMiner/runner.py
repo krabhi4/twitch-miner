@@ -6,6 +6,7 @@ from pathlib import Path
 
 from TwitchChannelPointsMiner import TwitchChannelPointsMiner
 from TwitchChannelPointsMiner.classes.AnalyticsServer import load_config_file
+from TwitchChannelPointsMiner.classes.Database import get_database
 from TwitchChannelPointsMiner.classes.entities.Streamer import StreamerSettings
 from TwitchChannelPointsMiner.classes.Settings import Priority
 from TwitchChannelPointsMiner.logger import LoggerSettings
@@ -107,6 +108,7 @@ def run():
     refresh = int(os.environ.get("REFRESH", "5"))
     days_ago = int(os.environ.get("DAYS_AGO", "7"))
 
+    get_database(username=target_user).auto_migrate_json(username=target_user)
     cfg = load_config_file(target_user)
     streamer_settings = StreamerSettings()
     priority = [Priority.STREAK, Priority.DROPS, Priority.ORDER]

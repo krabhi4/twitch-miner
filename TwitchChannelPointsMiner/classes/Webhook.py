@@ -1,4 +1,5 @@
 import logging
+
 import requests
 
 from TwitchChannelPointsMiner.classes.Settings import Events
@@ -20,15 +21,14 @@ class Webhook(object):
             if self.method not in ("get", "post"):
                 return
             try:
-                data = {
-                    "event_name": str(event),
-                    "message": message
-                }
+                data = {"event_name": str(event), "message": message}
                 if self.method == "get":
                     requests.get(url=self.endpoint, params=data, timeout=self.timeout)
                 else:
                     requests.post(url=self.endpoint, data=data, timeout=self.timeout)
             except requests.exceptions.Timeout:
-                logger.error(f"Webhook timeout: {self.endpoint} did not respond within {self.timeout} seconds")
+                logger.error(
+                    f"Webhook timeout: {self.endpoint} did not respond within {self.timeout} seconds"
+                )
             except requests.RequestException as e:
                 logger.error(f"Webhook request failed: {self.endpoint} - {e}")

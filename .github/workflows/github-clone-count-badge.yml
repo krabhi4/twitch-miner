@@ -105,7 +105,7 @@ jobs:
             ```html' >> CLONE.md
             echo "<a href='$repo'><img alt='GitHub Clones' src='$shields$url&logo=github'></a>" >> CLONE.md
             echo '```' >> CLONE.md
-            
+
             git add CLONE.md
             git config --global user.name "GitHub Action"
             git config --global user.email "action@github.com"

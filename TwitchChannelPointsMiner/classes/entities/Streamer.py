@@ -1,5 +1,3 @@
-import copy
-import json
 import logging
 import os
 import time
@@ -90,6 +88,7 @@ class Streamer(object):
         "history",
         "streamer_url",
         "mutex",
+        "miner_username",
     ]
 
     def __init__(self, username, settings=None):
@@ -97,6 +96,7 @@ class Streamer(object):
         self.channel_id: str = ""
         self.settings = settings
         self.is_online = False
+        self.miner_username = getattr(Settings, "miner_username", None)
         self.stream_up = 0
         self.online_at = 0
         self.offline_at = 0
@@ -214,12 +214,13 @@ class Streamer(object):
         else:
             return prediction_window_seconds
 
-    # === ANALYTICS === #
     def persistent_annotations(self, event_type, event_text):
+        if not getattr(Settings, "enable_analytics", False):
+            return
         event_type = event_type.upper()
         if event_type in ["WATCH_STREAK", "WIN", "PREDICTION_MADE", "LOSE"]:
             primary_color = (
-                "#45c1ff"  # blue #45c1ff yellow #ffe045 green #36b535 red #ff4545
+                "#45c1ff"
                 if event_type == "WATCH_STREAK"
                 else (
                     "#ffe045"
@@ -227,48 +228,53 @@ class Streamer(object):
                     else ("#36b535" if event_type == "WIN" else "#ff4545")
                 )
             )
+            now = datetime.now().replace(microsecond=0)
+            now_ms = round(datetime.timestamp(now) * 1000)
             data = {
                 "borderColor": primary_color,
                 "label": {
                     "style": {"color": "#000", "background": primary_color},
                     "text": event_text,
                 },
+                "x": now_ms,
             }
-            self.__save_json("annotations", data)
+            from TwitchChannelPointsMiner.classes.Database import get_database
+
+            db = get_database()
+            user = getattr(self, "miner_username", None) or os.path.basename(
+                getattr(Settings, "analytics_path", "") or ""
+            )
+            if not user:
+                user = db.get_any_username() or "default"
+            db.save_annotation(
+                username=user,
+                streamer=self.username.lower().strip(),
+                x=now_ms,
+                border_color=primary_color,
+                text=event_text,
+                data=data,
+            )
 
     def persistent_series(self, event_type="Watch"):
-        self.__save_json("series", event_type=event_type)
-
-    def __save_json(self, key, data=None, event_type="Watch"):
-        data = {} if data is None else copy.deepcopy(data)
+        if not getattr(Settings, "enable_analytics", False):
+            return
         now = datetime.now().replace(microsecond=0)
-        data.update({"x": round(datetime.timestamp(now) * 1000)})
+        now_ms = round(datetime.timestamp(now) * 1000)
+        from TwitchChannelPointsMiner.classes.Database import get_database
 
-        if key == "series":
-            data.update({"y": self.channel_points})
-            if event_type is not None:
-                data.update({"z": event_type.replace("_", " ").title()})
-
-        os.makedirs(Settings.analytics_path, exist_ok=True)
-        safe_username = os.path.basename(self.username)
-        fname = os.path.join(Settings.analytics_path, f"{safe_username}.json")
-        temp_fname = fname + ".temp"
-
-        with self.mutex:
-            with open(temp_fname, "w", encoding="utf-8") as temp_file:
-                json_data = {}
-                if os.path.isfile(fname):
-                    try:
-                        with open(fname, "r", encoding="utf-8") as f:
-                            json_data = json.load(f)
-                    except (json.JSONDecodeError, OSError):
-                        json_data = {}
-                if key not in json_data:
-                    json_data[key] = []
-                json_data[key].append(data)
-                json.dump(json_data, temp_file, indent=4)
-
-            os.replace(temp_fname, fname)
+        db = get_database()
+        user = getattr(self, "miner_username", None) or os.path.basename(
+            getattr(Settings, "analytics_path", "") or ""
+        )
+        if not user:
+            user = db.get_any_username() or "default"
+        db.save_series(
+            username=user,
+            streamer=self.username.lower().strip(),
+            x=now_ms,
+            y=self.channel_points,
+            z=event_type.replace("_", " ").title() if event_type else "Watch",
+        )
 
     def leave_chat(self):
         if self.irc_chat is not None:

@@ -40,6 +40,8 @@ setuptools.setup(
         "pandas",
         "pytz",
         "validators",
+        "sqlalchemy",
+        "psycopg2-binary",
     ],
     extras_require={
         "dev": ["pre-commit"],

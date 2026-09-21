@@ -75,14 +75,8 @@ class EventPrediction(object):
         points_won = result.get("points_won") or 0
 
         points = {}
-        points["placed"] = (
-            decision_amount if result_type != "REFUND" else 0
-        )
-        points["won"] = (
-            points_won
-            if points_won or result_type == "REFUND"
-            else 0
-        )
+        points["placed"] = decision_amount if result_type != "REFUND" else 0
+        points["won"] = points_won if points_won or result_type == "REFUND" else 0
         points["gained"] = (
             points["won"] - points["placed"] if result_type != "REFUND" else 0
         )

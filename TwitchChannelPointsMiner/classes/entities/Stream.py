@@ -59,9 +59,9 @@ class Stream(object):
         self.tags = tags or []
         self.viewers_count = viewers_count
 
-        self.drops_tags = (
-            DROP_ID in [tag.get("id") for tag in self.tags if isinstance(tag, dict)] and bool(self.game)
-        )
+        self.drops_tags = DROP_ID in [
+            tag.get("id") for tag in self.tags if isinstance(tag, dict)
+        ] and bool(self.game)
         self.__last_update = time.time()
 
         logger.debug(f"Update: {self}")
@@ -70,19 +70,25 @@ class Stream(object):
         return f"Stream(title={self.title}, game={self.__str_game()}, tags={self.__str_tags()})"
 
     def __str__(self):
-        return f"{self.title}" if getattr(Settings.logger, "less", False) else self.__repr__()
+        return (
+            f"{self.title}"
+            if getattr(Settings.logger, "less", False)
+            else self.__repr__()
+        )
 
     def __str_tags(self):
         if not self.tags:
             return None
-        return ", ".join([tag.get("localizedName", "") for tag in self.tags if isinstance(tag, dict)])
+        return ", ".join(
+            [tag.get("localizedName", "") for tag in self.tags if isinstance(tag, dict)]
+        )
 
     def __str_game(self):
         return self.game.get("displayName") if isinstance(self.game, dict) else None
 
     def game_name(self):
         return self.game.get("name") if isinstance(self.game, dict) else None
-    
+
     def game_id(self):
         return self.game.get("id") if isinstance(self.game, dict) else None
 
@@ -99,5 +105,7 @@ class Stream(object):
 
     def update_minute_watched(self):
         if self.__minute_watched_timestamp != 0:
-            self.minute_watched += max(0.0, time.time() - self.__minute_watched_timestamp) / 60
+            self.minute_watched += (
+                max(0.0, time.time() - self.__minute_watched_timestamp) / 60
+            )
         self.__minute_watched_timestamp = time.time()

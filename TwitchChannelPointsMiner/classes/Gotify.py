@@ -4,6 +4,7 @@ import requests
 
 from TwitchChannelPointsMiner.classes.Settings import Events
 
+
 class Gotify(object):
     __slots__ = ["endpoint", "priority", "events"]
 
@@ -17,10 +18,7 @@ class Gotify(object):
             try:
                 requests.post(
                     url=self.endpoint,
-                    json={
-                        "message": dedent(message),
-                        "priority": self.priority
-                    },
+                    json={"message": dedent(message), "priority": self.priority},
                     timeout=10,
                 )
             except requests.RequestException:

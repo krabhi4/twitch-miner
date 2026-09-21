@@ -51,13 +51,22 @@ class TwitchWebSocket(WebSocketApp):
         try:
             request_str = json.dumps(request, separators=(",", ":"))
         except (TypeError, ValueError) as err:
-            logger.error(f"#{self.index} - Failed to serialize WebSocket request: {err}")
+            logger.error(
+                f"#{self.index} - Failed to serialize WebSocket request: {err}"
+            )
             return
 
-        if isinstance(request, dict) and "data" in request and isinstance(request["data"], dict) and "auth_token" in request["data"]:
+        if (
+            isinstance(request, dict)
+            and "data" in request
+            and isinstance(request["data"], dict)
+            and "auth_token" in request["data"]
+        ):
             sanitized = copy.deepcopy(request)
             sanitized["data"]["auth_token"] = "***"
-            logger.debug(f"#{self.index} - Send: {json.dumps(sanitized, separators=(',', ':'))}")
+            logger.debug(
+                f"#{self.index} - Send: {json.dumps(sanitized, separators=(',', ':'))}"
+            )
         else:
             logger.debug(f"#{self.index} - Send: {request_str}")
 

@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import re
+import time
 from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -24,16 +25,17 @@ logger = logging.getLogger(__name__)
 
 
 def streamers_available():
-    path = getattr(Settings, "analytics_path", None)
-    if not path or not os.path.isdir(path):
+    from TwitchChannelPointsMiner.classes.Database import get_database
+
+    db = get_database()
+    username = (
+        getattr(Settings, "analytics_username", None)
+        or os.path.basename(getattr(Settings, "analytics_path", "") or "")
+        or db.get_any_username()
+    )
+    if not username:
         return []
-    return [
-        f
-        for f in os.listdir(path)
-        if os.path.isfile(os.path.join(path, f))
-        and f.endswith(".json")
-        and f != "config.json"
-    ]
+    return [f"{s}.json" for s in db.get_streamers(username)]
 
 
 def aggregate(df, freq="30Min"):
@@ -50,145 +52,85 @@ def aggregate(df, freq="30Min"):
     return result
 
 
-def filter_datas(start_date, end_date, datas):
-    try:
-        start_date = (
-            datetime.strptime(start_date, "%Y-%m-%d").timestamp() * 1000
-            if start_date is not None
-            else 0
-        )
-    except (ValueError, TypeError):
-        start_date = 0
-
-    try:
-        end_date = (
-            datetime.strptime(end_date, "%Y-%m-%d")
-            if end_date is not None
-            else datetime.now()
-        ).replace(hour=23, minute=59, second=59).timestamp() * 1000
-    except (ValueError, TypeError):
-        end_date = (
-            datetime.now().replace(hour=23, minute=59, second=59).timestamp() * 1000
-        )
-
-    original_series = datas.get("series", [])
-
-    if "series" in datas and datas["series"]:
-        df = pd.DataFrame(datas["series"])
-        df["datetime"] = pd.to_datetime(df.x // 1000, unit="s")
-        df = df[(df.x >= start_date) & (df.x <= end_date)]
-        datas["series"] = (
-            df.drop(columns="datetime")
-            .sort_values(by=["x", "y"], ascending=True)
-            .to_dict("records")
-        )
-    else:
-        datas["series"] = []
-
-    if len(datas["series"]) == 0 and original_series:
-        try:
-            new_end_date = start_date
-            new_start_date = 0
-            df = pd.DataFrame(original_series)
-            df["datetime"] = pd.to_datetime(df.x // 1000, unit="s")
-            df = df[(df.x >= new_start_date) & (df.x <= new_end_date)]
-            if not df.empty:
-                last_balance = (
-                    df.drop(columns="datetime")
-                    .sort_values(by=["x", "y"], ascending=True)
-                    .to_dict("records")[-1]["y"]
-                )
-                datas["series"] = [
-                    {"x": start_date, "y": last_balance, "z": "No Stream"},
-                    {"x": end_date, "y": last_balance, "z": "No Stream"},
-                ]
-        except Exception:
-            pass
-
-    if "annotations" in datas and datas["annotations"]:
-        df = pd.DataFrame(datas["annotations"])
-        df["datetime"] = pd.to_datetime(df.x // 1000, unit="s")
-        df = df[(df.x >= start_date) & (df.x <= end_date)]
-        datas["annotations"] = (
-            df.drop(columns="datetime")
-            .sort_values(by="x", ascending=True)
-            .to_dict("records")
-        )
-    else:
-        datas["annotations"] = datas.get("annotations", [])
-
-    return datas
-
-
 def read_json(streamer, return_response=True):
-    start_date = request.args.get("startDate", type=str)
-    end_date = request.args.get("endDate", type=str)
+    start_date = request.args.get("startDate", type=str) if request else None
+    end_date = request.args.get("endDate", type=str) if request else None
 
-    path = getattr(Settings, "analytics_path", None)
-    if not path:
-        msg = "Analytics not enabled"
-        return (
-            Response(
-                json.dumps({"error": msg}), status=500, mimetype="application/json"
+    from TwitchChannelPointsMiner.classes.Database import get_database
+
+    db = get_database()
+    username = (
+        getattr(Settings, "analytics_username", None)
+        or os.path.basename(getattr(Settings, "analytics_path", "") or "")
+        or db.get_any_username()
+    )
+
+    streamer_clean = os.path.basename(streamer).replace(".json", "").lower().strip()
+
+    start_ts = None
+    if start_date:
+        try:
+            start_ts = int(datetime.strptime(start_date, "%Y-%m-%d").timestamp() * 1000)
+        except Exception:
+            start_ts = None
+
+    end_ts = None
+    if end_date:
+        try:
+            end_ts = int(
+                datetime.strptime(end_date, "%Y-%m-%d")
+                .replace(hour=23, minute=59, second=59)
+                .timestamp()
+                * 1000
             )
-            if return_response
-            else {"error": msg}
-        )
+        except Exception:
+            end_ts = None
 
-    streamer = os.path.basename(streamer)
-    streamer = streamer if streamer.endswith(".json") else f"{streamer}.json"
-    target_path = os.path.abspath(os.path.join(path, streamer))
+    data = db.get_streamer_data(
+        username, streamer_clean, start_date=start_ts, end_date=end_ts
+    )
 
-    if not target_path.startswith(os.path.abspath(path)) or not os.path.exists(
-        target_path
-    ):
-        error_message = f"File '{streamer}' not found."
-        logger.error(error_message)
-        if return_response:
-            return Response(
-                json.dumps({"error": error_message}),
-                status=404,
-                mimetype="application/json",
-            )
-        else:
-            return {"error": error_message}
+    if start_ts is not None and len(data.get("series", [])) == 0:
+        baseline = db.get_streamer_data(username, streamer_clean, end_date=start_ts)
+        if baseline.get("series"):
+            last_y = baseline["series"][-1]["y"]
+            end_bound = end_ts if end_ts is not None else int(time.time() * 1000)
+            data["series"] = [
+                {"x": start_ts, "y": last_y, "z": "No Stream"},
+                {"x": end_bound, "y": last_y, "z": "No Stream"},
+            ]
 
-    try:
-        with open(target_path, "r") as file:
-            data = json.load(file)
-    except json.JSONDecodeError as e:
-        error_message = f"Error decoding JSON in file '{streamer}': {str(e)}"
-        logger.error(error_message)
-        if return_response:
-            return Response(
-                json.dumps({"error": error_message}),
-                status=500,
-                mimetype="application/json",
-            )
-        else:
-            return {"error": error_message}
-
-    filtered_data = filter_datas(start_date, end_date, data)
     if return_response:
-        return Response(
-            json.dumps(filtered_data), status=200, mimetype="application/json"
-        )
-    else:
-        return filtered_data
+        return Response(json.dumps(data), status=200, mimetype="application/json")
+    return data
 
 
 def get_challenge_points(streamer):
-    datas = read_json(streamer, return_response=False)
-    if "series" in datas and datas["series"]:
-        return datas["series"][-1]["y"]
-    return 0
+    streamer_clean = os.path.basename(streamer).replace(".json", "").lower().strip()
+    from TwitchChannelPointsMiner.classes.Database import get_database
+
+    db = get_database()
+    username = (
+        getattr(Settings, "analytics_username", None)
+        or os.path.basename(getattr(Settings, "analytics_path", "") or "")
+        or db.get_any_username()
+    )
+    pt = db.get_last_series_point(username, streamer_clean)
+    return pt.get("y", 0)
 
 
 def get_last_activity(streamer):
-    datas = read_json(streamer, return_response=False)
-    if "series" in datas and datas["series"]:
-        return datas["series"][-1]["x"]
-    return 0
+    streamer_clean = os.path.basename(streamer).replace(".json", "").lower().strip()
+    from TwitchChannelPointsMiner.classes.Database import get_database
+
+    db = get_database()
+    username = (
+        getattr(Settings, "analytics_username", None)
+        or os.path.basename(getattr(Settings, "analytics_path", "") or "")
+        or db.get_any_username()
+    )
+    pt = db.get_last_series_point(username, streamer_clean)
+    return pt.get("x", 0)
 
 
 def json_all():
@@ -284,23 +226,36 @@ def serialize_streamer_settings(s):
 
 
 def load_config_file(username):
+    from TwitchChannelPointsMiner.classes.Database import get_database
+
+    db = get_database(username=username)
+    cfg = db.load_config(username)
+    if cfg is not None:
+        return cfg
     path = get_config_path(username)
     if os.path.isfile(path):
         try:
-            with open(path, "r") as f:
-                return json.load(f)
+            with open(path, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+            db.save_config(username, cfg)
+            Path(path).unlink(missing_ok=True)
+            return cfg
         except Exception as e:
             logger.error(f"Failed to load config {path}: {e}")
     return None
 
 
 def save_config_file(username, data):
+    from TwitchChannelPointsMiner.classes.Database import get_database
+
+    db = get_database(username=username)
+    db.save_config(username, data)
     path = get_config_path(username)
-    Path(os.path.dirname(path)).mkdir(parents=True, exist_ok=True)
-    tmp = path + ".tmp"
-    with open(tmp, "w") as f:
-        json.dump(data, f, indent=4)
-    os.replace(tmp, path)
+    if os.path.isfile(path):
+        try:
+            os.remove(path)
+        except Exception:
+            pass
     return path
 
 
@@ -334,20 +289,17 @@ def default_global_config():
 
 
 def compute_streamer_stats(streamer_file, username=None):
-    path = getattr(Settings, "analytics_path", None)
-    if not path:
-        if username:
-            path = os.path.join(Path().absolute(), "analytics", username)
-        else:
-            return {}
-    full = os.path.join(path, streamer_file)
-    if not os.path.isfile(full):
-        return {}
-    try:
-        with open(full, "r") as f:
-            data = json.load(f)
-    except Exception:
-        return {}
+    from TwitchChannelPointsMiner.classes.Database import get_database
+
+    db = get_database(username=username)
+    username = (
+        username
+        or getattr(Settings, "analytics_username", None)
+        or os.path.basename(getattr(Settings, "analytics_path", "") or "")
+        or db.get_any_username()
+    )
+    name = os.path.basename(streamer_file).replace(".json", "").lower().strip()
+    data = db.get_streamer_data(username, name)
 
     series = data.get("series", [])
     annotations = data.get("annotations", [])
@@ -443,21 +395,19 @@ def api_overview(username):
 
 
 def api_bet_history(username, streamer=None):
-    path = getattr(Settings, "analytics_path", None)
-    if not path and username:
-        path = os.path.join(Path().absolute(), "analytics", username)
-    files = [streamer + ".json"] if streamer else streamers_available()
+    from TwitchChannelPointsMiner.classes.Database import get_database
+
+    db = get_database(username=username)
+    user = (
+        username or getattr(Settings, "miner_username", None) or db.get_any_username()
+    )
+    if streamer:
+        streamers = [streamer.lower().strip().replace(".json", "")]
+    else:
+        streamers = [s.replace(".json", "") for s in streamers_available()]
     rows = []
-    for fname in files:
-        full = os.path.join(path, fname) if path else fname
-        if not os.path.isfile(full):
-            continue
-        try:
-            with open(full, "r") as f:
-                data = json.load(f)
-        except Exception:
-            continue
-        name = fname.replace(".json", "")
+    for name in streamers:
+        data = db.get_streamer_data(user, name)
         annotations = data.get("annotations", [])
         series = data.get("series", [])
         for ann in annotations:
@@ -867,6 +817,9 @@ class AnalyticsServer(Thread):
                         deleted = True
             if deleted:
                 save_config_file(username, cfg)
+                from TwitchChannelPointsMiner.classes.Database import get_database
+
+                get_database(username=username).delete_streamer(username, name)
                 return Response(
                     json.dumps({"status": "deleted", "streamer": name}),
                     status=200,

@@ -128,6 +128,11 @@ class TwitchChannelPointsMiner:
             Path(Settings.analytics_path).mkdir(parents=True, exist_ok=True)
 
         self.username = username
+        Settings.miner_username = username
+
+        from TwitchChannelPointsMiner.classes.Database import get_database
+
+        get_database(username=self.username).auto_migrate_json(username=self.username)
 
         # Set as global config
         Settings.logger = logger_settings
@@ -324,6 +329,7 @@ class TwitchChannelPointsMiner:
                         if isinstance(streamers_dict[username], Streamer) is True
                         else Streamer(username)
                     )
+                    streamer.miner_username = self.username
                     streamer.channel_id = self.twitch.get_channel_id(username)
                     streamer.settings = set_default_settings(
                         streamer.settings, Settings.streamer_settings
@@ -599,6 +605,7 @@ class TwitchChannelPointsMiner:
                     return s
 
             streamer = Streamer(username, settings=settings)
+            streamer.miner_username = self.username
             if hasattr(self, "twitch") and self.twitch is not None:
                 streamer.channel_id = self.twitch.get_channel_id(username)
 

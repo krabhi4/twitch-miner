@@ -19,6 +19,7 @@ RUN apt-get update \
     libjpeg-dev \
     libblas-dev \
     liblapack-dev \
+    libpq-dev \
   && pip install --upgrade pip \
   && pip wheel --no-cache-dir --wheel-dir=/build/wheels -r requirements.txt
 
@@ -37,6 +38,7 @@ RUN apt-get update \
   && DEBIAN_FRONTEND=noninteractive apt-get install -qq -y --no-install-recommends \
     libjpeg62-turbo \
     zlib1g \
+    libpq5 \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 

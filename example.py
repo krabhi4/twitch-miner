@@ -80,7 +80,7 @@ if __name__ == "__main__":
             endpoint="https://example.com/message?token=TOKEN",
             priority=8,
             events=[Events.STREAMER_ONLINE, Events.STREAMER_OFFLINE,
-                    Events.BET_LOSE, Events.CHAT_MENTION], 
+                    Events.BET_LOSE, Events.CHAT_MENTION],
         ),
         ntfy=Ntfy(
             endpoint="https://ntfy.example.com/mytopic",

@@ -17,7 +17,9 @@ class Message(object):
 
     def __init__(self, data):
         topic_raw = data.get("topic", "") if isinstance(data, dict) else ""
-        topic_parts = topic_raw.split(".", 1) if isinstance(topic_raw, str) else ["", ""]
+        topic_parts = (
+            topic_raw.split(".", 1) if isinstance(topic_raw, str) else ["", ""]
+        )
         self.topic = topic_parts[0]
         self.topic_user = topic_parts[1] if len(topic_parts) > 1 else ""
 
@@ -55,12 +57,21 @@ class Message(object):
     def __get_channel_id(self):
         if not isinstance(self.data, dict):
             return self.topic_user
-        if isinstance(self.data.get("prediction"), dict) and "channel_id" in self.data["prediction"]:
+        if (
+            isinstance(self.data.get("prediction"), dict)
+            and "channel_id" in self.data["prediction"]
+        ):
             return self.data["prediction"]["channel_id"]
-        if isinstance(self.data.get("claim"), dict) and "channel_id" in self.data["claim"]:
+        if (
+            isinstance(self.data.get("claim"), dict)
+            and "channel_id" in self.data["claim"]
+        ):
             return self.data["claim"]["channel_id"]
         if "channel_id" in self.data:
             return self.data["channel_id"]
-        if isinstance(self.data.get("balance"), dict) and "channel_id" in self.data["balance"]:
+        if (
+            isinstance(self.data.get("balance"), dict)
+            and "channel_id" in self.data["balance"]
+        ):
             return self.data["balance"]["channel_id"]
         return self.topic_user

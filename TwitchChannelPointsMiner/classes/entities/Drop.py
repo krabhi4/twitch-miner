@@ -3,6 +3,7 @@ from datetime import datetime
 from TwitchChannelPointsMiner.classes.Settings import Settings
 from TwitchChannelPointsMiner.utils import percentage
 
+
 def parse_datetime(datetime_str):
     if not datetime_str or not isinstance(datetime_str, str):
         return None
@@ -12,6 +13,7 @@ def parse_datetime(datetime_str):
         except (ValueError, TypeError):
             continue
     return None
+
 
 class Drop(object):
     __slots__ = [
@@ -35,11 +37,15 @@ class Drop(object):
         self.id = data.get("id")
         self.name = data.get("name", "")
         self.benefit = ", ".join(
-            list(set([
-                bf["benefit"]["name"]
-                for bf in data.get("benefitEdges", [])
-                if isinstance(bf, dict) and bf.get("benefit", {}).get("name")
-            ]))
+            list(
+                set(
+                    [
+                        bf["benefit"]["name"]
+                        for bf in data.get("benefitEdges", [])
+                        if isinstance(bf, dict) and bf.get("benefit", {}).get("name")
+                    ]
+                )
+            )
         )
         self.minutes_required = data.get("requiredMinutesWatched", 0)
 
@@ -69,27 +75,24 @@ class Drop(object):
             progress.get("currentMinutesWatched", 0), self.minutes_required
         )
         quarter = round((updated_percentage / 25), 4).is_integer()
-        self.is_printable = (
-            progress.get("currentMinutesWatched", 0) > self.current_minutes_watched
-            and (
-                (
-                    updated_percentage > self.percentage_progress
-                    and quarter
-                    and self.current_minutes_watched != 0
-                )
-                or (
-                    progress.get("currentMinutesWatched", 0) == 1
-                    and self.current_minutes_watched == 0
-                )
+        self.is_printable = progress.get(
+            "currentMinutesWatched", 0
+        ) > self.current_minutes_watched and (
+            (
+                updated_percentage > self.percentage_progress
+                and quarter
+                and self.current_minutes_watched != 0
+            )
+            or (
+                progress.get("currentMinutesWatched", 0) == 1
+                and self.current_minutes_watched == 0
             )
         )
 
         self.current_minutes_watched = progress.get("currentMinutesWatched", 0)
         self.drop_instance_id = progress.get("dropInstanceID")
         self.is_claimed = progress.get("isClaimed", False)
-        self.is_claimable = (
-            not self.is_claimed and self.drop_instance_id is not None
-        )
+        self.is_claimable = not self.is_claimed and self.drop_instance_id is not None
         self.percentage_progress = updated_percentage
 
     def __repr__(self):

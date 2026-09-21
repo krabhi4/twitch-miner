@@ -168,18 +168,17 @@ class Bet(object):
             self.total_users += self.outcomes[index][OutcomeKeys.TOTAL_USERS]
             self.total_points += self.outcomes[index][OutcomeKeys.TOTAL_POINTS]
 
-        if (
-            self.total_users > 0
-            and self.total_points > 0
-        ):
+        if self.total_users > 0 and self.total_points > 0:
             for index in range(0, len(self.outcomes)):
                 self.outcomes[index][OutcomeKeys.PERCENTAGE_USERS] = float_round(
-                    (100 * self.outcomes[index][OutcomeKeys.TOTAL_USERS]) / self.total_users
+                    (100 * self.outcomes[index][OutcomeKeys.TOTAL_USERS])
+                    / self.total_users
                 )
                 self.outcomes[index][OutcomeKeys.ODDS] = float_round(
                     0
                     if self.outcomes[index][OutcomeKeys.TOTAL_POINTS] == 0
-                    else self.total_points / self.outcomes[index][OutcomeKeys.TOTAL_POINTS]
+                    else self.total_points
+                    / self.outcomes[index][OutcomeKeys.TOTAL_POINTS]
                 )
                 self.outcomes[index][OutcomeKeys.ODDS_PERCENTAGE] = float_round(
                     0
@@ -270,7 +269,9 @@ class Bet(object):
                 )
             else:
                 outcome_index = self.decision.get("choice") if self.decision else None
-                if outcome_index is None or not (0 <= outcome_index < len(self.outcomes)):
+                if outcome_index is None or not (
+                    0 <= outcome_index < len(self.outcomes)
+                ):
                     return True, 0
                 compared_value = self.outcomes[outcome_index].get(fixed_key, 0)
 

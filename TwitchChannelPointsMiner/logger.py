@@ -2,25 +2,24 @@ import logging
 import os
 import platform
 import queue
-import pytz
 import sys
 from datetime import datetime
 from logging.handlers import QueueHandler, QueueListener, RotatingFileHandler
 from pathlib import Path
+from typing import List, Optional, Union
 
 import emoji
+import pytz
 from colorama import Fore, init
 
-from typing import Union, List, Optional
-
 from TwitchChannelPointsMiner.classes.Discord import Discord
-from TwitchChannelPointsMiner.classes.Webhook import Webhook
+from TwitchChannelPointsMiner.classes.Gotify import Gotify
 from TwitchChannelPointsMiner.classes.Matrix import Matrix
+from TwitchChannelPointsMiner.classes.Ntfy import Ntfy
+from TwitchChannelPointsMiner.classes.Pushover import Pushover
 from TwitchChannelPointsMiner.classes.Settings import Events
 from TwitchChannelPointsMiner.classes.Telegram import Telegram
-from TwitchChannelPointsMiner.classes.Pushover import Pushover
-from TwitchChannelPointsMiner.classes.Gotify import Gotify
-from TwitchChannelPointsMiner.classes.Ntfy import Ntfy
+from TwitchChannelPointsMiner.classes.Webhook import Webhook
 from TwitchChannelPointsMiner.utils import remove_emoji
 
 
@@ -87,7 +86,7 @@ class LoggerSettings:
         "pushover",
         "gotify",
         "ntfy",
-        "username"
+        "username",
     ]
 
     def __init__(
@@ -111,7 +110,7 @@ class LoggerSettings:
         pushover: Union[Pushover, List[Pushover], None] = None,
         gotify: Union[Gotify, List[Gotify], None] = None,
         ntfy: Union[Ntfy, List[Ntfy], None] = None,
-        username: Optional[str] = None
+        username: Optional[str] = None,
     ):
         self.save = save
         self.less = less
@@ -121,7 +120,9 @@ class LoggerSettings:
         self.file_level = file_level
         self.emoji = emoji
         self.colored = colored
-        self.color_palette = color_palette if color_palette is not None else ColorPalette()
+        self.color_palette = (
+            color_palette if color_palette is not None else ColorPalette()
+        )
         self.auto_clear = auto_clear
         self.max_bytes = max_bytes
         self.backup_count = backup_count
@@ -152,8 +153,7 @@ class FileFormatter(logging.Formatter):
                 self.timezone = pytz.timezone(settings.time_zone)
                 logging.info(f"File logger time zone set to: {self.timezone}")
             except pytz.UnknownTimeZoneError:
-                logging.error(
-                    f"File logger: invalid time zone: {settings.time_zone}")
+                logging.error(f"File logger: invalid time zone: {settings.time_zone}")
         logging.Formatter.__init__(self, fmt=fmt, datefmt=datefmt)
 
     def formatTime(self, record, datefmt=None):
@@ -171,11 +171,11 @@ class GlobalFormatter(logging.Formatter):
         if settings.time_zone:
             try:
                 self.timezone = pytz.timezone(settings.time_zone)
-                logging.info(
-                    f"Console logger time zone set to: {self.timezone}")
+                logging.info(f"Console logger time zone set to: {self.timezone}")
             except pytz.UnknownTimeZoneError:
                 logging.error(
-                    f"Console logger: invalid time zone: {settings.time_zone}")
+                    f"Console logger: invalid time zone: {settings.time_zone}"
+                )
         logging.Formatter.__init__(self, fmt=fmt, datefmt=datefmt)
 
     def formatTime(self, record, datefmt=None):
@@ -187,8 +187,7 @@ class GlobalFormatter(logging.Formatter):
 
     def format(self, record):
         record.emoji_is_present = (
-            record.emoji_is_present if hasattr(
-                record, "emoji_is_present") else False
+            record.emoji_is_present if hasattr(record, "emoji_is_present") else False
         )
         if (
             hasattr(record, "emoji")
@@ -234,7 +233,9 @@ class GlobalFormatter(logging.Formatter):
             logging.getLogger(__name__).exception("Failed to send notification")
 
     def telegram(self, record):
-        skip_telegram = hasattr(record, "skip_telegram") and record.skip_telegram is True
+        skip_telegram = (
+            hasattr(record, "skip_telegram") and record.skip_telegram is True
+        )
         if self.settings.telegram is not None and not skip_telegram:
             for client in self.settings.telegram:
                 if client.chat_id != 123456789:
@@ -244,7 +245,10 @@ class GlobalFormatter(logging.Formatter):
         skip_discord = hasattr(record, "skip_discord") and record.skip_discord is True
         if self.settings.discord is not None and not skip_discord:
             for client in self.settings.discord:
-                if client.webhook_api != "https://discord.com/api/webhooks/0123456789/0a1B2c3D4e5F6g7H8i9J":
+                if (
+                    client.webhook_api
+                    != "https://discord.com/api/webhooks/0123456789/0a1B2c3D4e5F6g7H8i9J"
+                ):
                     self._safe_send(client, record.msg, record.event)
 
     def webhook(self, record):
@@ -262,10 +266,15 @@ class GlobalFormatter(logging.Formatter):
                     self._safe_send(client, record.msg, record.event)
 
     def pushover(self, record):
-        skip_pushover = hasattr(record, "skip_pushover") and record.skip_pushover is True
+        skip_pushover = (
+            hasattr(record, "skip_pushover") and record.skip_pushover is True
+        )
         if self.settings.pushover is not None and not skip_pushover:
             for client in self.settings.pushover:
-                if client.userkey != "YOUR-ACCOUNT-TOKEN" and client.token != "YOUR-APPLICATION-TOKEN":
+                if (
+                    client.userkey != "YOUR-ACCOUNT-TOKEN"
+                    and client.token != "YOUR-APPLICATION-TOKEN"
+                ):
                     self._safe_send(client, record.msg, record.event)
 
     def gotify(self, record):
@@ -345,7 +354,7 @@ def configure_loggers(username, settings):
             FileFormatter(
                 fmt="%(asctime)s - %(levelname)s - %(name)s - [%(funcName)s]: %(message)s",
                 datefmt="%d/%m/%y %H:%M:%S",
-                settings=settings
+                settings=settings,
             )
         )
         file_handler.setLevel(settings.file_level)

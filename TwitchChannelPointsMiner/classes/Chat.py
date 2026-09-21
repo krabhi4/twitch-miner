@@ -8,8 +8,8 @@ from threading import Thread
 from irc.bot import SingleServerIRCBot
 from irc.connection import Factory
 
-from TwitchChannelPointsMiner.constants import IRC, IRC_PORT
 from TwitchChannelPointsMiner.classes.Settings import Events, Settings
+from TwitchChannelPointsMiner.constants import IRC, IRC_PORT
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +70,12 @@ class ClientIRC(SingleServerIRCBot):
         msg = event.arguments[0]
         mention = None
 
-        nickname = getattr(self, "_nickname", None) or getattr(self, "nickname", None) or getattr(self, "_realname", None) or ""
+        nickname = (
+            getattr(self, "_nickname", None)
+            or getattr(self, "nickname", None)
+            or getattr(self, "_realname", None)
+            or ""
+        )
         if not nickname:
             return
         if Settings.disable_at_in_nickname:
@@ -80,8 +85,10 @@ class ClientIRC(SingleServerIRCBot):
 
         if mention is not None and mention in msg.lower():
             nick = event.source.split("!", 1)[0]
-            logger.info(f"{nick} at {self.channel} wrote: {msg}", extra={
-                        "emoji": ":speech_balloon:", "event": Events.CHAT_MENTION})
+            logger.info(
+                f"{nick} at {self.channel} wrote: {msg}",
+                extra={"emoji": ":speech_balloon:", "event": Events.CHAT_MENTION},
+            )
 
 
 class ThreadChat(Thread):
