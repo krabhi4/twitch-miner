@@ -103,6 +103,12 @@ $(document).ready(function(){
     $('.history-table th[data-sort]').click(function(){ const f=$(this).data('sort'); if(historySortField===f) historySortAsc=!historySortAsc; else {historySortField=f; historySortAsc=true;} renderHistoryTable(); });
     $('#btn-save-global').click(saveGlobalConfig);
     $('#btn-add-streamer').click(addStreamer);
+    $('#new-streamer-name').on('keypress', function(e){
+        if(e.which === 13){
+            e.preventDefault();
+            addStreamer();
+        }
+    });
     $('#btn-save-priority').click(savePriority);
 
     toggleDarkMode();
@@ -426,6 +432,9 @@ function goHistoryPage(p){ historyPage=p; renderHistoryTable(); }
 function loadConfig(){
     $.getJSON('/api/enums', function(enums){ enumsCache=enums; });
     $.getJSON('/api/config', function(cfg){
+        if(cfg && cfg.can_add_streamer === false){
+            $('.add-streamer-row').remove();
+        }
         renderGlobalConfig(cfg.global, cfg.priority);
         renderPerChannel(cfg.streamers);
         renderPriority(cfg.priority);
@@ -601,13 +610,46 @@ function saveChannel(name){
     }, error:function(xhr){ $(`#${safeName}-status`).text('Error '+xhr.responseText).addClass('err'); }});
 }
 function deleteChannel(name){
-    if(!confirm(`Delete per-channel config for ${name}? (will fallback to global)`)) return;
-    $.ajax({url:`/api/config/streamer/${encodeURIComponent(name)}`, method:'DELETE', success:function(){ loadConfig(); }});
+    const isDockerMode = typeof canAddStreamer !== 'undefined' && !canAddStreamer;
+    const promptMsg = isDockerMode
+        ? `Reset per-channel config for ${name} to global settings?`
+        : `Remove streamer ${name} from miner?`;
+    if(!confirm(promptMsg)) return;
+    $.ajax({
+        url:`/api/config/streamer/${encodeURIComponent(name)}`,
+        method:'DELETE',
+        success:function(){
+            loadConfig();
+            loadOverview();
+            getStreamers();
+        },
+        error:function(xhr){
+            alert('Error: ' + (xhr.responseJSON?.error || xhr.responseText));
+        }
+    });
 }
 function addStreamer(){
     const name=$('#new-streamer-name').val().trim().toLowerCase();
     if(!name) return alert('Enter username');
-    $.ajax({url:'/api/config/streamer', method:'POST', contentType:'application/json', data: JSON.stringify({username:name, settings:null}), success:function(){ $('#new-streamer-name').val(''); loadConfig(); }, error:function(xhr){ alert('Error: '+xhr.responseText); }});
+    const btn = $('#btn-add-streamer');
+    btn.prop('disabled', true);
+    $.ajax({
+        url:'/api/config/streamer',
+        method:'POST',
+        contentType:'application/json',
+        data: JSON.stringify({username:name, settings:null}),
+        success:function(){
+            btn.prop('disabled', false);
+            $('#new-streamer-name').val('');
+            loadConfig();
+            loadOverview();
+            getStreamers();
+        },
+        error:function(xhr){
+            btn.prop('disabled', false);
+            alert('Error: ' + (xhr.responseJSON?.error || xhr.responseText));
+        }
+    });
 }
 function renderPriority(priority){
     const c=$('#priority-editor'); c.empty();

@@ -24,10 +24,12 @@ from TwitchChannelPointsMiner.classes.WebSocketsPool import WebSocketsPool
 from TwitchChannelPointsMiner.logger import LoggerSettings, configure_loggers
 from TwitchChannelPointsMiner.utils import (
     _millify,
+    apply_settings_dict_to_streamer,
     at_least_one_value_in_settings_is,
     check_versions,
     get_user_agent,
     internet_connection_available,
+    is_docker_run_py,
     set_default_settings,
 )
 
@@ -59,6 +61,7 @@ class TwitchChannelPointsMiner:
         "disable_at_in_nickname",
         "priority",
         "streamers",
+        "streamers_lock",
         "events_predictions",
         "minute_watcher_thread",
         "sync_campaigns_thread",
@@ -147,6 +150,7 @@ class TwitchChannelPointsMiner:
             self.priority = [priority]
 
         self.streamers: list[Streamer] = []
+        self.streamers_lock = threading.RLock()
         self.events_predictions = {}
         self.minute_watcher_thread = None
         self.sync_campaigns_thread = None
@@ -215,7 +219,12 @@ class TwitchChannelPointsMiner:
     ):
         streamers = [] if streamers is None else streamers
         blacklist = [] if blacklist is None else blacklist
-        self.run(streamers=streamers, blacklist=blacklist, followers=followers, followers_order=followers_order)
+        self.run(
+            streamers=streamers,
+            blacklist=blacklist,
+            followers=followers,
+            followers_order=followers_order,
+        )
 
     def run(
         self,
@@ -268,6 +277,28 @@ class TwitchChannelPointsMiner:
                         streamers_name.append(username)
                         streamers_dict[username] = username.lower().strip()
 
+            saved_streamers_cfg = {}
+            if not is_docker_run_py():
+                try:
+                    from TwitchChannelPointsMiner.classes.AnalyticsServer import (
+                        load_config_file,
+                    )
+
+                    saved_cfg = load_config_file(self.username)
+                    if saved_cfg and isinstance(saved_cfg.get("streamers"), dict):
+                        saved_streamers_cfg = saved_cfg["streamers"]
+                        for saved_name in saved_streamers_cfg.keys():
+                            saved_name = saved_name.lower().strip()
+                            if (
+                                saved_name
+                                and saved_name not in streamers_dict
+                                and saved_name not in blacklist
+                            ):
+                                streamers_name.append(saved_name)
+                                streamers_dict[saved_name] = saved_name
+                except Exception as e:
+                    logger.error(f"Failed to load streamers from config: {e}")
+
             logger.info(
                 f"Loading data for {len(streamers_name)} streamers. Please wait...",
                 extra={"emoji": ":nerd_face:"},
@@ -287,6 +318,11 @@ class TwitchChannelPointsMiner:
                     streamer.settings.bet = set_default_settings(
                         streamer.settings.bet, Settings.streamer_settings.bet
                     )
+                    s_data = saved_streamers_cfg.get(
+                        streamer.username
+                    ) or saved_streamers_cfg.get(streamer.username.lower())
+                    if s_data and isinstance(s_data, dict):
+                        apply_settings_dict_to_streamer(streamer, s_data)
                     if streamer.settings.chat != ChatPresence.NEVER:
                         streamer.irc_chat = ThreadChat(
                             self.username,
@@ -317,7 +353,8 @@ class TwitchChannelPointsMiner:
                     )
 
             self.original_streamers = {
-                streamer.username: streamer.channel_points for streamer in self.streamers
+                streamer.username: streamer.channel_points
+                for streamer in self.streamers
             }
 
             # If we have at least one streamer with settings = make_predictions True
@@ -429,15 +466,17 @@ class TwitchChannelPointsMiner:
                                     f"Streamer {streamer.username} does not exist, removing from streamers list",
                                     extra={"emoji": ":cry:"},
                                 )
-                                self.streamers.remove(streamer)
+                                with self.streamers_lock:
+                                    if streamer in self.streamers:
+                                        self.streamers.remove(streamer)
 
     def end(self, signum, frame):
         if not self.running:
             return
-        
+
         logger.info("CTRL+C Detected! Please wait just a moment!")
 
-        for streamer in self.streamers:
+        for streamer in self.streamers[:]:
             if (
                 streamer.irc_chat is not None
                 and streamer.settings.chat != ChatPresence.NEVER
@@ -509,22 +548,144 @@ class TwitchChannelPointsMiner:
         print("")
         for streamer in self.streamers:
             if streamer.history != {}:
-                orig_points = self.original_streamers.get(streamer.username, streamer.channel_points)
+                orig_points = self.original_streamers.get(
+                    streamer.username, streamer.channel_points
+                )
                 gained = streamer.channel_points - orig_points
-                
+
                 from colorama import Fore
+
                 streamer_highlight = Fore.YELLOW
-                
+
                 streamer_gain = (
                     f"{streamer_highlight}{streamer}{Fore.RESET}, Total Points Gained: {_millify(gained)}"
                     if Settings.logger.less
                     else f"{streamer_highlight}{repr(streamer)}{Fore.RESET}, Total Points Gained (after farming - before farming): {_millify(gained)}"
                 )
-                
-                indent = ' ' * 25
-                streamer_history = '\n'.join(f"{indent}{history}" for history in streamer.print_history().split('; ')) 
-                
+
+                indent = " " * 25
+                streamer_history = "\n".join(
+                    f"{indent}{history}"
+                    for history in streamer.print_history().split("; ")
+                )
+
                 logger.info(
                     f"{streamer_gain}\n{streamer_history}",
                     extra={"emoji": ":moneybag:"},
                 )
+
+    def add_streamer(
+        self, username: str, settings: StreamerSettings = None
+    ) -> Streamer:
+        username = username.lower().strip()
+        with self.streamers_lock:
+            for s in self.streamers:
+                if s.username.lower() == username:
+                    if settings:
+                        s.settings = settings
+                    return s
+
+            streamer = Streamer(username, settings=settings)
+            if hasattr(self, "twitch") and self.twitch is not None:
+                streamer.channel_id = self.twitch.get_channel_id(username)
+
+            streamer.settings = set_default_settings(
+                streamer.settings, Settings.streamer_settings
+            )
+            streamer.settings.bet = set_default_settings(
+                streamer.settings.bet, Settings.streamer_settings.bet
+            )
+
+            if (
+                hasattr(self, "twitch")
+                and self.twitch is not None
+                and getattr(self.twitch, "twitch_login", None)
+            ):
+                if streamer.settings.chat != ChatPresence.NEVER:
+                    streamer.irc_chat = ThreadChat(
+                        self.username,
+                        self.twitch.twitch_login.get_auth_token(),
+                        streamer.username,
+                    )
+
+            self.streamers.append(streamer)
+
+        if (
+            getattr(self, "running", False)
+            and hasattr(self, "twitch")
+            and self.twitch is not None
+        ):
+            try:
+                self.twitch.load_channel_points_context(streamer)
+                self.twitch.check_streamer_online(streamer)
+            except Exception as e:
+                logger.error(f"Failed to load points or status for {username}: {e}")
+
+            self.original_streamers[streamer.username] = streamer.channel_points
+            try:
+                streamer.update_channel_points()
+            except Exception:
+                pass
+
+            if hasattr(self, "ws_pool") and self.ws_pool is not None:
+                self.ws_pool.submit(
+                    PubsubTopic("video-playback-by-id", streamer=streamer)
+                )
+                if streamer.settings.follow_raid is True:
+                    self.ws_pool.submit(PubsubTopic("raid", streamer=streamer))
+                if streamer.settings.make_predictions is True:
+                    self.ws_pool.submit(
+                        PubsubTopic("predictions-channel-v1", streamer=streamer)
+                    )
+                if streamer.settings.claim_moments is True:
+                    self.ws_pool.submit(
+                        PubsubTopic("community-moments-channel-v1", streamer=streamer)
+                    )
+                if streamer.settings.community_goals is True:
+                    self.ws_pool.submit(
+                        PubsubTopic("community-points-channel-v1", streamer=streamer)
+                    )
+
+            if streamer.settings.claim_drops is True:
+                if (
+                    not hasattr(self, "sync_campaigns_thread")
+                    or self.sync_campaigns_thread is None
+                    or not self.sync_campaigns_thread.is_alive()
+                ):
+                    self.sync_campaigns_thread = threading.Thread(
+                        target=self.twitch.sync_campaigns,
+                        args=(self.streamers,),
+                    )
+                    self.sync_campaigns_thread.name = "Sync campaigns/inventory"
+                    self.sync_campaigns_thread.start()
+
+            streamer.toggle_chat()
+
+        logger.info(
+            f"Streamer '{username}' added to miner",
+            extra={"emoji": ":white_check_mark:"},
+        )
+        return streamer
+
+    def remove_streamer(self, username: str) -> bool:
+        username = username.lower().strip()
+        with self.streamers_lock:
+            target = next(
+                (s for s in self.streamers if s.username.lower() == username),
+                None,
+            )
+            if target is not None:
+                if target.irc_chat is not None:
+                    try:
+                        target.leave_chat()
+                    except Exception as e:
+                        logger.error(f"Error leaving chat for {username}: {e}")
+                if target in self.streamers:
+                    self.streamers.remove(target)
+                self.original_streamers.pop(target.username, None)
+                logger.info(
+                    f"Streamer '{username}' removed from miner",
+                    extra={"emoji": ":wastebasket:"},
+                )
+                return True
+            return False

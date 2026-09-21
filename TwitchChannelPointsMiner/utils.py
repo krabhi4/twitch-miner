@@ -1,13 +1,13 @@
-import platform
+import os
 import re
 import secrets
 import socket
 import string
+import sys
 import time
 from copy import deepcopy
 from datetime import datetime, timezone
 from os import path
-from random import randrange
 
 import requests
 from millify import millify
@@ -34,8 +34,7 @@ def float_round(number, ndigits=2):
 
 def server_time(message_data):
     return (
-        datetime.fromtimestamp(
-            message_data["server_time"], timezone.utc).isoformat()
+        datetime.fromtimestamp(message_data["server_time"], timezone.utc).isoformat()
         + "Z"
         if message_data is not None and "server_time" in message_data
         else datetime.fromtimestamp(time.time(), timezone.utc).isoformat() + "Z"
@@ -145,7 +144,7 @@ def percentage(a, b):
 
 
 def create_chunks(lst, n):
-    return [lst[i: (i + n)] for i in range(0, len(lst), n)]
+    return [lst[slice(i, i + n)] for i in range(0, len(lst), n)]
 
 
 def download_file(name, fpath):
@@ -161,6 +160,7 @@ def download_file(name, fpath):
             dir_path = path.dirname(fpath)
             if dir_path:
                 import os
+
                 os.makedirs(dir_path, exist_ok=True)
             with open(fpath, "wb") as f:
                 for chunk in r.iter_content(chunk_size=1024):
@@ -206,3 +206,107 @@ def check_versions():
     except Exception:
         github_version = "0.0.0"
     return current_version, github_version
+
+
+def is_docker() -> bool:
+    return bool(
+        os.path.exists("/.dockerenv")
+        or os.environ.get("RUNNING_IN_DOCKER") == "1"
+        or os.environ.get("DOCKER") == "1"
+    )
+
+
+def is_docker_run_py() -> bool:
+    env_override = os.environ.get("DOCKER_RUN_PY")
+    if env_override is not None:
+        return env_override.lower() in ("1", "true", "yes")
+    return is_docker() and (
+        os.path.isfile("run.py")
+        or os.path.isfile("/usr/src/app/run.py")
+        or any(arg.endswith("run.py") for arg in sys.argv)
+    )
+
+
+def apply_settings_dict_to_streamer(streamer, data: dict):
+    if (
+        not streamer
+        or not data
+        or not hasattr(streamer, "settings")
+        or not streamer.settings
+    ):
+        return
+    from TwitchChannelPointsMiner.classes.Chat import ChatPresence
+    from TwitchChannelPointsMiner.classes.entities.Bet import (
+        BetSettings,
+        Condition,
+        DelayMode,
+        FilterCondition,
+        OutcomeKeys,
+        Strategy,
+    )
+
+    for k in [
+        "make_predictions",
+        "follow_raid",
+        "claim_drops",
+        "claim_moments",
+        "watch_streak",
+        "community_goals",
+    ]:
+        if k in data and data[k] is not None:
+            setattr(streamer.settings, k, data[k])
+
+    if "chat" in data and data["chat"]:
+        try:
+            streamer.settings.chat = ChatPresence[data["chat"]]
+        except Exception:
+            pass
+
+    if "bet" in data and data["bet"]:
+        b = data["bet"]
+        blive = streamer.settings.bet
+        if blive is None:
+            blive = BetSettings()
+            streamer.settings.bet = blive
+        for kb in [
+            "percentage",
+            "percentage_gap",
+            "max_points",
+            "minimum_points",
+            "stealth_mode",
+            "delay",
+        ]:
+            if kb in b and b[kb] is not None:
+                setattr(blive, kb, b[kb])
+        if "strategy" in b and b["strategy"]:
+            try:
+                blive.strategy = Strategy[b["strategy"]]
+            except Exception:
+                pass
+        if "delay_mode" in b and b["delay_mode"]:
+            try:
+                blive.delay_mode = DelayMode[b["delay_mode"]]
+            except Exception:
+                pass
+        if "filter_condition" in b:
+            fc = b["filter_condition"]
+            if fc is None:
+                blive.filter_condition = None
+            else:
+                try:
+                    cond = FilterCondition(
+                        by=(
+                            OutcomeKeys[fc["by"]]
+                            if fc.get("by") and hasattr(OutcomeKeys, fc["by"])
+                            else fc.get("by")
+                        ),
+                        where=(
+                            Condition[fc["where"]]
+                            if fc.get("where") and hasattr(Condition, fc["where"])
+                            else fc.get("where")
+                        ),
+                        value=fc.get("value"),
+                    )
+                    blive.filter_condition = cond
+                except Exception:
+                    pass

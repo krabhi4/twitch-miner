@@ -1,6 +1,8 @@
+import copy
 import json
 import logging
 import os
+import re
 from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -9,8 +11,13 @@ from threading import Thread
 import pandas as pd
 from flask import Flask, Response, cli, render_template, request, send_from_directory
 
+from TwitchChannelPointsMiner.classes.Exceptions import StreamerDoesNotExistException
 from TwitchChannelPointsMiner.classes.Settings import Settings
-from TwitchChannelPointsMiner.utils import download_file
+from TwitchChannelPointsMiner.utils import (
+    apply_settings_dict_to_streamer,
+    download_file,
+    is_docker_run_py,
+)
 
 cli.show_server_banner = lambda *_: None
 logger = logging.getLogger(__name__)
@@ -23,7 +30,9 @@ def streamers_available():
     return [
         f
         for f in os.listdir(path)
-        if os.path.isfile(os.path.join(path, f)) and f.endswith(".json") and f != "config.json"
+        if os.path.isfile(os.path.join(path, f))
+        and f.endswith(".json")
+        and f != "config.json"
     ]
 
 
@@ -31,12 +40,10 @@ def aggregate(df, freq="30Min"):
     df_base_events = df[(df.z == "Watch") | (df.z == "Claim")]
     df_other_events = df[(df.z != "Watch") & (df.z != "Claim")]
 
-    be = df_base_events.groupby(
-        [pd.Grouper(freq=freq, key="datetime"), "z"]).max()
+    be = df_base_events.groupby([pd.Grouper(freq=freq, key="datetime"), "z"]).max()
     be = be.reset_index()
 
-    oe = df_other_events.groupby(
-        [pd.Grouper(freq=freq, key="datetime"), "z"]).max()
+    oe = df_other_events.groupby([pd.Grouper(freq=freq, key="datetime"), "z"]).max()
     oe = oe.reset_index()
 
     result = pd.concat([be, oe])
@@ -60,7 +67,9 @@ def filter_datas(start_date, end_date, datas):
             else datetime.now()
         ).replace(hour=23, minute=59, second=59).timestamp() * 1000
     except (ValueError, TypeError):
-        end_date = datetime.now().replace(hour=23, minute=59, second=59).timestamp() * 1000
+        end_date = (
+            datetime.now().replace(hour=23, minute=59, second=59).timestamp() * 1000
+        )
 
     original_series = datas.get("series", [])
 
@@ -84,10 +93,15 @@ def filter_datas(start_date, end_date, datas):
             df["datetime"] = pd.to_datetime(df.x // 1000, unit="s")
             df = df[(df.x >= new_start_date) & (df.x <= new_end_date)]
             if not df.empty:
-                last_balance = df.drop(columns="datetime").sort_values(
-                    by=["x", "y"], ascending=True).to_dict("records")[-1]['y']
-                datas["series"] = [{'x': start_date, 'y': last_balance, 'z': 'No Stream'}, {
-                    'x': end_date, 'y': last_balance, 'z': 'No Stream'}]
+                last_balance = (
+                    df.drop(columns="datetime")
+                    .sort_values(by=["x", "y"], ascending=True)
+                    .to_dict("records")[-1]["y"]
+                )
+                datas["series"] = [
+                    {"x": start_date, "y": last_balance, "z": "No Stream"},
+                    {"x": end_date, "y": last_balance, "z": "No Stream"},
+                ]
         except Exception:
             pass
 
@@ -113,34 +127,52 @@ def read_json(streamer, return_response=True):
     path = getattr(Settings, "analytics_path", None)
     if not path:
         msg = "Analytics not enabled"
-        return Response(json.dumps({"error": msg}), status=500, mimetype="application/json") if return_response else {"error": msg}
+        return (
+            Response(
+                json.dumps({"error": msg}), status=500, mimetype="application/json"
+            )
+            if return_response
+            else {"error": msg}
+        )
 
     streamer = os.path.basename(streamer)
     streamer = streamer if streamer.endswith(".json") else f"{streamer}.json"
     target_path = os.path.abspath(os.path.join(path, streamer))
 
-    if not target_path.startswith(os.path.abspath(path)) or not os.path.exists(target_path):
+    if not target_path.startswith(os.path.abspath(path)) or not os.path.exists(
+        target_path
+    ):
         error_message = f"File '{streamer}' not found."
         logger.error(error_message)
         if return_response:
-            return Response(json.dumps({"error": error_message}), status=404, mimetype="application/json")
+            return Response(
+                json.dumps({"error": error_message}),
+                status=404,
+                mimetype="application/json",
+            )
         else:
             return {"error": error_message}
 
     try:
-        with open(target_path, 'r') as file:
+        with open(target_path, "r") as file:
             data = json.load(file)
     except json.JSONDecodeError as e:
         error_message = f"Error decoding JSON in file '{streamer}': {str(e)}"
         logger.error(error_message)
         if return_response:
-            return Response(json.dumps({"error": error_message}), status=500, mimetype="application/json")
+            return Response(
+                json.dumps({"error": error_message}),
+                status=500,
+                mimetype="application/json",
+            )
         else:
             return {"error": error_message}
 
     filtered_data = filter_datas(start_date, end_date, data)
     if return_response:
-        return Response(json.dumps(filtered_data), status=200, mimetype="application/json")
+        return Response(
+            json.dumps(filtered_data), status=200, mimetype="application/json"
+        )
     else:
         return filtered_data
 
@@ -180,6 +212,7 @@ def index(refresh=5, days_ago=7):
         "charts.html",
         refresh=(refresh * 60 * 1000),
         daysAgo=days_ago,
+        can_add_streamer=not is_docker_run_py(),
     )
 
 
@@ -187,15 +220,17 @@ def streamers():
     return Response(
         json.dumps(
             [
-                {"name": s, "points": get_challenge_points(
-                    s), "last_activity": get_last_activity(s)}
+                {
+                    "name": s,
+                    "points": get_challenge_points(s),
+                    "last_activity": get_last_activity(s),
+                }
                 for s in sorted(streamers_available())
             ]
         ),
         status=200,
         mimetype="application/json",
     )
-
 
 
 def get_config_path(username):
@@ -318,7 +353,13 @@ def compute_streamer_stats(streamer_file, username=None):
     annotations = data.get("annotations", [])
 
     if not series:
-        return {"points": 0, "last_activity": 0, "total_gained": 0, "series_count": 0, "bets": {"placed": 0, "wins": 0, "losses": 0, "win_rate": 0}}
+        return {
+            "points": 0,
+            "last_activity": 0,
+            "total_gained": 0,
+            "series_count": 0,
+            "bets": {"placed": 0, "wins": 0, "losses": 0, "win_rate": 0},
+        }
 
     points = series[-1].get("y", 0)
     last_activity = series[-1].get("x", 0)
@@ -328,7 +369,7 @@ def compute_streamer_stats(streamer_file, username=None):
     z_counter = Counter([s.get("z", "Unknown") for s in series])
     gains_by_reason = defaultdict(int)
     for i in range(1, len(series)):
-        delta = series[i].get("y", 0) - series[i-1].get("y", 0)
+        delta = series[i].get("y", 0) - series[i - 1].get("y", 0)
         if delta > 0:
             reason = series[i].get("z", "Unknown")
             gains_by_reason[reason] += delta
@@ -345,7 +386,10 @@ def compute_streamer_stats(streamer_file, username=None):
     streaks = color_map["#45c1ff"]
     win_rate = round((wins / (wins + losses) * 100) if (wins + losses) > 0 else 0, 1)
 
-    history = {k: {"counter": z_counter.get(k, 0), "amount": gains_by_reason.get(k, 0)} for k in set(list(z_counter.keys()) + list(gains_by_reason.keys()))}
+    history = {
+        k: {"counter": z_counter.get(k, 0), "amount": gains_by_reason.get(k, 0)}
+        for k in set(list(z_counter.keys()) + list(gains_by_reason.keys()))
+    }
 
     return {
         "name": streamer_file.replace(".json", ""),
@@ -385,7 +429,14 @@ def api_overview(username):
         "total_bets": total_bets,
         "total_wins": total_wins,
         "total_losses": total_losses,
-        "win_rate": round((total_wins / (total_wins + total_losses) * 100) if (total_wins + total_losses) > 0 else 0, 1),
+        "win_rate": round(
+            (
+                (total_wins / (total_wins + total_losses) * 100)
+                if (total_wins + total_losses) > 0
+                else 0
+            ),
+            1,
+        ),
         "top_streamer": top.get("name") if top else None,
         "streamers": stats_list,
     }
@@ -428,27 +479,61 @@ def api_bet_history(username, streamer=None):
                 if s["x"] <= x:
                     balance = s["y"]
                     break
-            rows.append({
-                "streamer": name,
-                "type": typ,
-                "color": color,
-                "text": text,
-                "x": x,
-                "datetime": datetime.fromtimestamp(x/1000).isoformat() if x else None,
-                "balance": balance,
-            })
+            rows.append(
+                {
+                    "streamer": name,
+                    "type": typ,
+                    "color": color,
+                    "text": text,
+                    "x": x,
+                    "datetime": (
+                        datetime.fromtimestamp(x / 1000).isoformat() if x else None
+                    ),
+                    "balance": balance,
+                }
+            )
     rows.sort(key=lambda r: r["x"], reverse=True)
     return rows
 
 
 def api_enums():
     return {
-        "strategies": ["MOST_VOTED", "HIGH_ODDS", "PERCENTAGE", "SMART_MONEY", "SMART", "NUMBER_1", "NUMBER_2", "NUMBER_3", "NUMBER_4", "NUMBER_5", "NUMBER_6", "NUMBER_7", "NUMBER_8"],
+        "strategies": [
+            "MOST_VOTED",
+            "HIGH_ODDS",
+            "PERCENTAGE",
+            "SMART_MONEY",
+            "SMART",
+            "NUMBER_1",
+            "NUMBER_2",
+            "NUMBER_3",
+            "NUMBER_4",
+            "NUMBER_5",
+            "NUMBER_6",
+            "NUMBER_7",
+            "NUMBER_8",
+        ],
         "delay_modes": ["FROM_START", "FROM_END", "PERCENTAGE"],
         "chat_presences": ["ALWAYS", "NEVER", "ONLINE", "OFFLINE"],
-        "outcome_keys": ["PERCENTAGE_USERS", "ODDS_PERCENTAGE", "ODDS", "TOP_POINTS", "TOTAL_USERS", "TOTAL_POINTS", "DECISION_USERS", "DECISION_POINTS"],
+        "outcome_keys": [
+            "PERCENTAGE_USERS",
+            "ODDS_PERCENTAGE",
+            "ODDS",
+            "TOP_POINTS",
+            "TOTAL_USERS",
+            "TOTAL_POINTS",
+            "DECISION_USERS",
+            "DECISION_POINTS",
+        ],
         "conditions": ["GT", "LT", "GTE", "LTE"],
-        "priorities": ["STREAK", "DROPS", "ORDER", "SUBSCRIBED", "POINTS_ASCENDING", "POINTS_DESCENDING"],
+        "priorities": [
+            "STREAK",
+            "DROPS",
+            "ORDER",
+            "SUBSCRIBED",
+            "POINTS_ASCENDING",
+            "POINTS_DESCENDING",
+        ],
     }
 
 
@@ -459,8 +544,7 @@ def download_assets(assets_folder, required_files):
     for f in required_files:
         if os.path.isfile(os.path.join(assets_folder, f)) is False:
             if (
-                download_file(os.path.join("assets", f),
-                              os.path.join(assets_folder, f))
+                download_file(os.path.join("assets", f), os.path.join(assets_folder, f))
                 is True
             ):
                 logger.info(f"Downloaded {f}")
@@ -484,6 +568,7 @@ def check_assets():
                 logger.info(f"Missing file {f} in {assets_folder}")
                 download_assets(assets_folder, required_files)
                 break
+
 
 class AnalyticsServer(Thread):
     def __init__(
@@ -514,15 +599,21 @@ class AnalyticsServer(Thread):
             logs_path = os.path.join(Path().absolute(), "logs")
             log_file_path = os.path.join(logs_path, f"{username}.log")
             if not os.path.isfile(log_file_path):
-                return Response("Log file not found.", status=404, mimetype="text/plain")
+                return Response(
+                    "Log file not found.", status=404, mimetype="text/plain"
+                )
             if request.args.get("raw") == "true":
                 try:
-                    return send_from_directory(logs_path, f"{username}.log", mimetype="text/plain")
+                    return send_from_directory(
+                        logs_path, f"{username}.log", mimetype="text/plain"
+                    )
                 except Exception as e:
                     logger.error(f"Error serving raw log: {e}")
             try:
                 file_size = os.path.getsize(log_file_path)
-                with open(log_file_path, "r", encoding="utf-8", errors="replace") as log_file:
+                with open(
+                    log_file_path, "r", encoding="utf-8", errors="replace"
+                ) as log_file:
                     if last_received_index <= 0 or last_received_index > file_size:
                         start_pos = max(0, file_size - 64 * 1024)
                         log_file.seek(start_pos)
@@ -538,72 +629,161 @@ class AnalyticsServer(Thread):
                 return resp
             except Exception as e:
                 logger.error(f"Error reading log file {log_file_path}: {e}")
-                return Response("Error reading log file.", status=500, mimetype="text/plain")
+                return Response(
+                    "Error reading log file.", status=500, mimetype="text/plain"
+                )
 
         def logs_view():
-            if request.args.get("raw") == "true" or ("text/plain" in request.headers.get("Accept", "") and "text/html" not in request.headers.get("Accept", "")):
+            if request.args.get("raw") == "true" or (
+                "text/plain" in request.headers.get("Accept", "")
+                and "text/html" not in request.headers.get("Accept", "")
+            ):
                 return generate_log()
             return render_template("logs.html")
 
         def api_config_get():
+            can_add = not is_docker_run_py()
             saved = load_config_file(username)
             if saved:
-                return Response(json.dumps(saved), status=200, mimetype="application/json")
+                resp_data = dict(saved)
+                resp_data["can_add_streamer"] = can_add
+                if "streamers" not in resp_data or not isinstance(
+                    resp_data["streamers"], dict
+                ):
+                    resp_data["streamers"] = {}
+                existing_lower = {k.lower() for k in resp_data["streamers"]}
+                if self.miner and hasattr(self.miner, "streamers"):
+                    for s in self.miner.streamers:
+                        if s.username.lower() not in existing_lower:
+                            resp_data["streamers"][s.username] = (
+                                serialize_streamer_settings(s.settings)
+                                if hasattr(s, "settings") and s.settings
+                                else None
+                            )
+                return Response(
+                    json.dumps(resp_data),
+                    status=200,
+                    mimetype="application/json",
+                )
             live_global = default_global_config()
             streamers_cfg = {}
             if self.miner and hasattr(self.miner, "streamers"):
                 for s in self.miner.streamers:
                     if hasattr(s, "settings") and s.settings:
-                        streamers_cfg[s.username] = serialize_streamer_settings(s.settings)
-            out = {"global": live_global, "streamers": streamers_cfg, "priority": [str(p) for p in getattr(self.miner, "priority", [])] if self.miner and hasattr(self.miner, "priority") else []}
+                        streamers_cfg[s.username] = serialize_streamer_settings(
+                            s.settings
+                        )
+                    else:
+                        streamers_cfg[s.username] = None
+            out = {
+                "global": live_global,
+                "streamers": streamers_cfg,
+                "priority": (
+                    [str(p) for p in getattr(self.miner, "priority", [])]
+                    if self.miner and hasattr(self.miner, "priority")
+                    else []
+                ),
+                "can_add_streamer": can_add,
+            }
             return Response(json.dumps(out), status=200, mimetype="application/json")
 
         def api_config_put():
             try:
                 data = request.get_json(force=True)
             except Exception as e:
-                return Response(json.dumps({"error": str(e)}), status=400, mimetype="application/json")
-            existing = load_config_file(username) or {"global": default_global_config(), "streamers": {}, "priority": []}
+                return Response(
+                    json.dumps({"error": str(e)}),
+                    status=400,
+                    mimetype="application/json",
+                )
+            existing = load_config_file(username) or {
+                "global": default_global_config(),
+                "streamers": {},
+                "priority": [],
+            }
             if "global" in data:
                 existing["global"] = data["global"]
                 try:
-                    from TwitchChannelPointsMiner.classes.entities.Bet import Strategy, DelayMode, FilterCondition, BetSettings, Condition, OutcomeKeys
                     from TwitchChannelPointsMiner.classes.Chat import ChatPresence
-                    from TwitchChannelPointsMiner.classes.entities.Streamer import StreamerSettings
+                    from TwitchChannelPointsMiner.classes.entities.Bet import (
+                        Condition,
+                        DelayMode,
+                        FilterCondition,
+                        OutcomeKeys,
+                        Strategy,
+                    )
+
                     gs = existing["global"]
                     try:
                         _live_tmp = getattr(Settings, "streamer_settings", None)
-                        live = _live_tmp if _live_tmp is not None and hasattr(_live_tmp, "make_predictions") else None
+                        live = (
+                            _live_tmp
+                            if _live_tmp is not None
+                            and hasattr(_live_tmp, "make_predictions")
+                            else None
+                        )
                     except Exception:
                         live = None
                     if live:
-                        for k in ["make_predictions","follow_raid","claim_drops","claim_moments","watch_streak","community_goals"]:
+                        for k in [
+                            "make_predictions",
+                            "follow_raid",
+                            "claim_drops",
+                            "claim_moments",
+                            "watch_streak",
+                            "community_goals",
+                        ]:
                             if k in gs:
                                 setattr(live, k, gs[k])
                         if "chat" in gs and gs["chat"]:
                             try:
                                 setattr(live, "chat", ChatPresence[gs["chat"]])
-                            except: pass
+                            except Exception:
+                                pass
                         if "bet" in gs and gs["bet"]:
                             b = gs["bet"]
                             blive = live.bet
-                            for kb in ["percentage","percentage_gap","max_points","minimum_points","stealth_mode","delay"]:
+                            for kb in [
+                                "percentage",
+                                "percentage_gap",
+                                "max_points",
+                                "minimum_points",
+                                "stealth_mode",
+                                "delay",
+                            ]:
                                 if kb in b:
                                     setattr(blive, kb, b[kb])
                             if "strategy" in b and b["strategy"]:
-                                try: blive.strategy = Strategy[b["strategy"]]
-                                except: pass
+                                try:
+                                    blive.strategy = Strategy[b["strategy"]]
+                                except Exception:
+                                    pass
                             if "delay_mode" in b and b["delay_mode"]:
-                                try: blive.delay_mode = DelayMode[b["delay_mode"]]
-                                except: pass
+                                try:
+                                    blive.delay_mode = DelayMode[b["delay_mode"]]
+                                except Exception:
+                                    pass
                             if "filter_condition" in b:
                                 fc = b["filter_condition"]
                                 if fc is None:
                                     blive.filter_condition = None
                                 else:
-                                     try:
-                                         blive.filter_condition = FilterCondition(by=OutcomeKeys[fc["by"]] if fc.get("by") else None, where=Condition[fc["where"]] if fc.get("where") else None, value=fc.get("value"))
-                                     except: pass
+                                    try:
+                                        blive.filter_condition = FilterCondition(
+                                            by=(
+                                                OutcomeKeys[fc["by"]]
+                                                if fc.get("by")
+                                                else None
+                                            ),
+                                            where=(
+                                                Condition[fc["where"]]
+                                                if fc.get("where")
+                                                else None
+                                            ),
+                                            value=fc.get("value"),
+                                        )
+                                    except Exception:
+                                        pass
                 except Exception as e:
                     logger.error(f"Failed to apply live config: {e}")
             if "streamers" in data:
@@ -611,89 +791,187 @@ class AnalyticsServer(Thread):
             if "priority" in data:
                 existing["priority"] = data["priority"]
             save_config_file(username, existing)
-            return Response(json.dumps({"status": "ok", "config": existing}), status=200, mimetype="application/json")
+            return Response(
+                json.dumps({"status": "ok", "config": existing}),
+                status=200,
+                mimetype="application/json",
+            )
 
         def api_streamer_put(name):
             try:
                 data = request.get_json(force=True)
             except Exception as e:
-                return Response(json.dumps({"error": str(e)}), status=400, mimetype="application/json")
-            cfg = load_config_file(username) or {"global": default_global_config(), "streamers": {}, "priority": []}
-            if "streamers" not in cfg:
-                cfg["streamers"] = {}
-            cfg["streamers"][name] = data
+                return Response(
+                    json.dumps({"error": str(e)}),
+                    status=400,
+                    mimetype="application/json",
+                )
+            name_clean = name.strip()
+            name_lower = name_clean.lower()
+            cfg = load_config_file(username) or {
+                "global": default_global_config(),
+                "streamers": {},
+                "priority": [],
+            }
+            streamers = cfg.setdefault("streamers", {})
+            target_key = next(
+                (k for k in streamers if k.lower() == name_lower),
+                name_clean,
+            )
+            streamers[target_key] = data
             if self.miner and hasattr(self.miner, "streamers"):
                 for s in self.miner.streamers:
-                    if s.username == name.lower():
+                    if s.username.lower() == name_lower:
                         try:
-                            from TwitchChannelPointsMiner.classes.entities.Bet import Strategy, DelayMode, FilterCondition, BetSettings, Condition, OutcomeKeys
-                            from TwitchChannelPointsMiner.classes.Chat import ChatPresence
-                            from TwitchChannelPointsMiner.classes.entities.Streamer import StreamerSettings
-                            for k in ["make_predictions","follow_raid","claim_drops","claim_moments","watch_streak","community_goals"]:
-                                if k in data:
-                                    setattr(s.settings, k, data[k])
-                            if "chat" in data and data["chat"]:
-                                try: s.settings.chat = ChatPresence[data["chat"]]
-                                except: pass
-                            if "bet" in data and data["bet"]:
-                                b=data["bet"]
-                                blive=s.settings.bet
-                                if blive is None:
-                                    blive=BetSettings()
-                                    s.settings.bet=blive
-                                for kb in ["percentage","percentage_gap","max_points","minimum_points","stealth_mode","delay"]:
-                                    if kb in b:
-                                        setattr(blive, kb, b[kb])
-                                if "strategy" in b and b["strategy"]:
-                                    try: blive.strategy = Strategy[b["strategy"]]
-                                    except: pass
-                                if "delay_mode" in b and b["delay_mode"]:
-                                    try: blive.delay_mode = DelayMode[b["delay_mode"]]
-                                    except: pass
-                                if "filter_condition" in b:
-                                    fc=b["filter_condition"]
-                                    if fc is None:
-                                        blive.filter_condition=None
-                                    else:
-                                        try:
-                                            cond = FilterCondition(by=fc.get("by"), where=fc.get("where"), value=fc.get("value"))
-                                            try:
-                                                cond.by = OutcomeKeys[fc["by"]] if fc.get("by") and hasattr(OutcomeKeys, fc["by"]) else fc.get("by")
-                                            except: pass
-                                            try:
-                                                cond.where = Condition[fc["where"]] if fc.get("where") and hasattr(Condition, fc["where"]) else fc.get("where")
-                                            except: pass
-                                            blive.filter_condition=cond
-                                        except: pass
+                            apply_settings_dict_to_streamer(s, data)
                         except Exception as e:
-                            logger.error(f"live update failed for {name}: {e}")
+                            logger.error(f"live update failed for {name_clean}: {e}")
             save_config_file(username, cfg)
-            return Response(json.dumps({"status": "ok", "streamer": name, "settings": data}), status=200, mimetype="application/json")
+            return Response(
+                json.dumps({"status": "ok", "streamer": target_key, "settings": data}),
+                status=200,
+                mimetype="application/json",
+            )
 
         def api_streamer_delete(name):
-            cfg = load_config_file(username) or {"global": default_global_config(), "streamers": {}, "priority": []}
-            if name in cfg.get("streamers", {}):
-                del cfg["streamers"][name]
+            name = name.lower().strip()
+            cfg = load_config_file(username) or {
+                "global": default_global_config(),
+                "streamers": {},
+                "priority": [],
+            }
+            streamers = cfg.setdefault("streamers", {})
+            key = next((k for k in streamers if k.lower() == name), None)
+            deleted = bool(streamers.pop(key, None)) if key else False
+            if not is_docker_run_py():
+                if self.miner and hasattr(self.miner, "remove_streamer"):
+                    try:
+                        if self.miner.remove_streamer(name):
+                            deleted = True
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to remove streamer {name} from miner: {e}"
+                        )
+            else:
+                if self.miner and hasattr(self.miner, "streamers"):
+                    target = next(
+                        (s for s in self.miner.streamers if s.username.lower() == name),
+                        None,
+                    )
+                    if target:
+                        if (
+                            hasattr(Settings, "streamer_settings")
+                            and Settings.streamer_settings
+                        ):
+                            target.settings = copy.deepcopy(Settings.streamer_settings)
+                        deleted = True
+            if deleted:
                 save_config_file(username, cfg)
-                return Response(json.dumps({"status": "deleted", "streamer": name}), status=200, mimetype="application/json")
-            return Response(json.dumps({"error": "not found"}), status=404, mimetype="application/json")
+                return Response(
+                    json.dumps({"status": "deleted", "streamer": name}),
+                    status=200,
+                    mimetype="application/json",
+                )
+            return Response(
+                json.dumps({"error": "not found"}),
+                status=404,
+                mimetype="application/json",
+            )
 
         def api_streamer_add():
+            if is_docker_run_py():
+                return Response(
+                    json.dumps(
+                        {
+                            "error": (
+                                "Adding streamers via settings is disabled "
+                                "when run.py is configured via Docker"
+                            )
+                        }
+                    ),
+                    status=403,
+                    mimetype="application/json",
+                )
             try:
                 data = request.get_json(force=True)
             except Exception as e:
-                return Response(json.dumps({"error": str(e)}), status=400, mimetype="application/json")
+                return Response(
+                    json.dumps({"error": str(e)}),
+                    status=400,
+                    mimetype="application/json",
+                )
             name = data.get("username") or data.get("name")
             if not name:
-                return Response(json.dumps({"error": "username required"}), status=400, mimetype="application/json")
+                return Response(
+                    json.dumps({"error": "username required"}),
+                    status=400,
+                    mimetype="application/json",
+                )
             name = name.lower().strip()
+            if not re.match(r"^[a-zA-Z0-9_]{3,25}$", name):
+                return Response(
+                    json.dumps({"error": "Invalid Twitch username format"}),
+                    status=400,
+                    mimetype="application/json",
+                )
             settings = data.get("settings")
-            cfg = load_config_file(username) or {"global": default_global_config(), "streamers": {}, "priority": []}
-            if cfg["streamers"].get(name):
-                return Response(json.dumps({"error": "already exists"}), status=409, mimetype="application/json")
+            cfg = load_config_file(username) or {
+                "global": default_global_config(),
+                "streamers": {},
+                "priority": [],
+            }
+            streamers = cfg.setdefault("streamers", {})
+            if not isinstance(streamers, dict):
+                cfg["streamers"] = streamers = {}
+            existing_lower = {k.lower() for k in streamers}
+            is_in_cfg = name in existing_lower
+            is_in_miner = bool(
+                self.miner
+                and any(
+                    s.username.lower() == name
+                    for s in getattr(self.miner, "streamers", [])
+                )
+            )
+            if is_in_cfg or is_in_miner:
+                return Response(
+                    json.dumps({"error": f"Streamer '{name}' already exists"}),
+                    status=409,
+                    mimetype="application/json",
+                )
+
+            new_streamer = None
+            if self.miner and hasattr(self.miner, "add_streamer"):
+                try:
+                    new_streamer = self.miner.add_streamer(name)
+                except StreamerDoesNotExistException:
+                    return Response(
+                        json.dumps(
+                            {"error": (f"Streamer '{name}' does not exist on Twitch")}
+                        ),
+                        status=404,
+                        mimetype="application/json",
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to add streamer {name} to miner: {e}")
+                    return Response(
+                        json.dumps({"error": f"Failed to add streamer: {str(e)}"}),
+                        status=500,
+                        mimetype="application/json",
+                    )
+
+            if new_streamer and settings and isinstance(settings, dict):
+                try:
+                    apply_settings_dict_to_streamer(new_streamer, settings)
+                except Exception as e:
+                    logger.error(f"Failed to apply initial settings to {name}: {e}")
+
             cfg["streamers"][name] = settings if settings is not None else None
             save_config_file(username, cfg)
-            return Response(json.dumps({"status": "created", "streamer": name}), status=201, mimetype="application/json")
+            return Response(
+                json.dumps({"status": "created", "streamer": name}),
+                status=201,
+                mimetype="application/json",
+            )
 
         def api_overview_handler():
             data = api_overview(username)
@@ -717,7 +995,9 @@ class AnalyticsServer(Thread):
                 cfg = load_config_file(username)
                 per_stream_cfg = None
                 if cfg and "streamers" in cfg:
-                    per_stream_cfg = cfg["streamers"].get(stats["name"]) or cfg["streamers"].get(stats["name"].lower())
+                    per_stream_cfg = cfg["streamers"].get(stats["name"]) or cfg[
+                        "streamers"
+                    ].get(stats["name"].lower())
                 stats["config"] = per_stream_cfg
                 if self.miner and hasattr(self.miner, "streamers"):
                     for s in self.miner.streamers:
@@ -730,19 +1010,29 @@ class AnalyticsServer(Thread):
             return Response(json.dumps(out), status=200, mimetype="application/json")
 
         def api_enums_handler():
-            return Response(json.dumps(api_enums()), status=200, mimetype="application/json")
+            return Response(
+                json.dumps(api_enums()), status=200, mimetype="application/json"
+            )
 
         def api_series_aggregate(streamer):
             freq = request.args.get("freq", type=str) or "30Min"
             data = read_json(streamer, return_response=False)
             if "error" in data:
-                return Response(json.dumps(data), status=404, mimetype="application/json")
+                return Response(
+                    json.dumps(data), status=404, mimetype="application/json"
+                )
             if freq != "raw" and "series" in data and data["series"]:
                 try:
                     df = pd.DataFrame(data["series"])
                     df["datetime"] = pd.to_datetime(df.x // 1000, unit="s")
                     agg = aggregate(df, freq=freq)
-                    data["series"] = agg.drop(columns="datetime").sort_values(by=["x","y"]).to_dict("records") if "x" in agg else data["series"]
+                    data["series"] = (
+                        agg.drop(columns="datetime")
+                        .sort_values(by=["x", "y"])
+                        .to_dict("records")
+                        if "x" in agg
+                        else data["series"]
+                    )
                 except Exception as e:
                     logger.error(f"aggregate failed: {e}")
             return Response(json.dumps(data), status=200, mimetype="application/json")
@@ -760,32 +1050,62 @@ class AnalyticsServer(Thread):
             defaults={"refresh": refresh, "days_ago": days_ago},
             methods=["GET"],
         )
-        self.app.add_url_rule("/streamers", "streamers",
-                              streamers, methods=["GET"])
+        self.app.add_url_rule("/streamers", "streamers", streamers, methods=["GET"])
         self.app.add_url_rule(
             "/json/<string:streamer>", "json", read_json, methods=["GET"]
         )
-        self.app.add_url_rule("/json_all", "json_all",
-                              json_all, methods=["GET"])
+        self.app.add_url_rule("/json_all", "json_all", json_all, methods=["GET"])
+        self.app.add_url_rule("/log", "log", generate_log, methods=["GET"])
+        self.app.add_url_rule("/logs", "logs", logs_view, methods=["GET"])
         self.app.add_url_rule(
-            "/log", "log", generate_log, methods=["GET"])
+            "/api/config", "api_config_get", api_config_get, methods=["GET"]
+        )
         self.app.add_url_rule(
-            "/logs", "logs", logs_view, methods=["GET"])
-        self.app.add_url_rule("/api/config", "api_config_get", api_config_get, methods=["GET"])
-        self.app.add_url_rule("/api/config", "api_config_put", api_config_put, methods=["PUT"])
-        self.app.add_url_rule("/api/config/streamer/<string:name>", "api_streamer_put", api_streamer_put, methods=["PUT"])
-        self.app.add_url_rule("/api/config/streamer/<string:name>", "api_streamer_delete", api_streamer_delete, methods=["DELETE"])
-        self.app.add_url_rule("/api/config/streamer", "api_streamer_add", api_streamer_add, methods=["POST"])
-        self.app.add_url_rule("/api/overview", "api_overview", api_overview_handler, methods=["GET"])
-        self.app.add_url_rule("/api/bets", "api_bets", api_bets_handler, methods=["GET"])
-        self.app.add_url_rule("/api/streamers/details", "api_streamers_details", api_streamers_details, methods=["GET"])
-        self.app.add_url_rule("/api/enums", "api_enums", api_enums_handler, methods=["GET"])
-        self.app.add_url_rule("/api/series/<string:streamer>", "api_series_agg", api_series_aggregate, methods=["GET"])
+            "/api/config", "api_config_put", api_config_put, methods=["PUT"]
+        )
+        self.app.add_url_rule(
+            "/api/config/streamer/<string:name>",
+            "api_streamer_put",
+            api_streamer_put,
+            methods=["PUT"],
+        )
+        self.app.add_url_rule(
+            "/api/config/streamer/<string:name>",
+            "api_streamer_delete",
+            api_streamer_delete,
+            methods=["DELETE"],
+        )
+        self.app.add_url_rule(
+            "/api/config/streamer",
+            "api_streamer_add",
+            api_streamer_add,
+            methods=["POST"],
+        )
+        self.app.add_url_rule(
+            "/api/overview", "api_overview", api_overview_handler, methods=["GET"]
+        )
+        self.app.add_url_rule(
+            "/api/bets", "api_bets", api_bets_handler, methods=["GET"]
+        )
+        self.app.add_url_rule(
+            "/api/streamers/details",
+            "api_streamers_details",
+            api_streamers_details,
+            methods=["GET"],
+        )
+        self.app.add_url_rule(
+            "/api/enums", "api_enums", api_enums_handler, methods=["GET"]
+        )
+        self.app.add_url_rule(
+            "/api/series/<string:streamer>",
+            "api_series_agg",
+            api_series_aggregate,
+            methods=["GET"],
+        )
 
     def run(self):
         logger.info(
             f"Analytics running on http://{self.host}:{self.port}/",
             extra={"emoji": ":globe_with_meridians:"},
         )
-        self.app.run(host=self.host, port=self.port,
-                     threaded=True, debug=False)
+        self.app.run(host=self.host, port=self.port, threaded=True, debug=False)

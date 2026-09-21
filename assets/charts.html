@@ -193,10 +193,12 @@
             <div class="config-card">
                 <div class="card-header-row">
                     <h3><i class="fa-solid fa-users-gear"></i> Per-Channel Settings</h3>
+                    {% if can_add_streamer is not defined or can_add_streamer %}
                     <div class="add-streamer-row">
                         <input type="text" id="new-streamer-name" class="input" placeholder="streamer username">
                         <button class="btn-small" id="btn-add-streamer"><i class="fa-solid fa-plus"></i> Add</button>
                     </div>
+                    {% endif %}
                 </div>
                 <div id="per-channel-list"></div>
             </div>
@@ -235,6 +237,7 @@
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
     let refresh = parseInt({{ refresh|tojson }}, 10);
     let daysAgo = parseInt({{ daysAgo|tojson }}, 10);
+    let canAddStreamer = {{ can_add_streamer|default(true)|tojson }};
     if (isNaN(refresh) || refresh <= 0) { refresh = 60; }
     if (isNaN(daysAgo) || daysAgo < 0) { daysAgo = 7; }
 </script>
