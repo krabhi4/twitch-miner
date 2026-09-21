@@ -168,7 +168,10 @@ class WebSocketsPool:
     @staticmethod
     def on_message(ws, message):
         logger.debug(f"#{ws.index} - Received: {message.strip()}")
-        response = json.loads(message)
+        try:
+            response = json.loads(message)
+        except (json.JSONDecodeError, ValueError, TypeError):
+            return
 
         if response["type"] == "MESSAGE":
             # We should create a Message class ...

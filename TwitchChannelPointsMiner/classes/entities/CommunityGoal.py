@@ -29,7 +29,7 @@ class CommunityGoal(object):
 
     def __eq__(self, other):
         if isinstance(other, CommunityGoal):
-            return self.goal_id == other.goal_id
+            return self.goal_id is not None and self.goal_id == other.goal_id
         return False
 
     def __repr__(self) -> str:
@@ -43,23 +43,23 @@ class CommunityGoal(object):
     @classmethod
     def from_gql(cls, gql_goal):
         return cls(
-            gql_goal.get("id"),
-            gql_goal.get("title"),
+            gql_goal.get("id", ""),
+            gql_goal.get("title", ""),
             gql_goal.get("isInStock", False),
             gql_goal.get("pointsContributed", 0),
             gql_goal.get("amountNeeded", 0),
             gql_goal.get("perStreamUserMaximumContribution", 0),
-            gql_goal.get("status")
+            gql_goal.get("status", "")
         )
 
     @classmethod
     def from_pubsub(cls, pubsub_goal):
         return cls(
-            pubsub_goal.get("id"),
-            pubsub_goal.get("title"),
+            pubsub_goal.get("id", ""),
+            pubsub_goal.get("title", ""),
             pubsub_goal.get("is_in_stock", False),
             pubsub_goal.get("points_contributed", 0),
             pubsub_goal.get("goal_amount", 0),
             pubsub_goal.get("per_stream_maximum_user_contribution", 0),
-            pubsub_goal.get("status")
+            pubsub_goal.get("status", "")
         )

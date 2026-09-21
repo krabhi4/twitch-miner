@@ -16,21 +16,23 @@ class Message(object):
     ]
 
     def __init__(self, data):
-        topic_parts = data.get("topic", "").split(".", 1)
+        topic_raw = data.get("topic", "") if isinstance(data, dict) else ""
+        topic_parts = topic_raw.split(".", 1) if isinstance(topic_raw, str) else ["", ""]
         self.topic = topic_parts[0]
         self.topic_user = topic_parts[1] if len(topic_parts) > 1 else ""
 
-        msg = data.get("message", "{}")
+        msg = data.get("message", "{}") if isinstance(data, dict) else "{}"
         if isinstance(msg, dict):
             self.message = msg
         else:
             try:
-                self.message = json.loads(msg)
+                parsed = json.loads(msg)
+                self.message = parsed if isinstance(parsed, dict) else {}
             except (json.JSONDecodeError, TypeError):
                 self.message = {}
 
         self.type = self.message.get("type", "")
-        self.data = self.message.get("data") if isinstance(self.message, dict) else None
+        self.data = self.message.get("data")
 
         self.timestamp = self.__get_timestamp()
         self.channel_id = self.__get_channel_id()

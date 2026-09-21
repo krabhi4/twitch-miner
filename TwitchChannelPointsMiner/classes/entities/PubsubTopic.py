@@ -21,8 +21,15 @@ class PubsubTopic(object):
 
     def __eq__(self, other):
         if isinstance(other, PubsubTopic):
-            return str(self) == str(other)
+            channel_id_self = getattr(self.streamer, "channel_id", self.streamer)
+            channel_id_other = getattr(other.streamer, "channel_id", other.streamer)
+            return (
+                self.topic == other.topic
+                and self.user_id == other.user_id
+                and channel_id_self == channel_id_other
+            )
         return False
 
     def __hash__(self):
-        return hash(str(self))
+        channel_id = getattr(self.streamer, "channel_id", self.streamer)
+        return hash((self.topic, self.user_id, channel_id))

@@ -106,6 +106,8 @@ celerybeat.pid
 
 # Environments
 .env
+.env.*
+*.env
 .venv
 env/
 venv/
@@ -145,11 +147,11 @@ run.py
 chromedriver*
 
 # Folders
-cookies/*
-logs/*
-screenshots/*
-htmls/*
-analytics/*
+cookies/
+logs/
+screenshots/
+htmls/
+analytics/
 
 # Replit
 keep_replit_alive.py

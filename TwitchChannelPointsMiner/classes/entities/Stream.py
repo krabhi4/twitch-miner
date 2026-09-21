@@ -47,6 +47,8 @@ class Stream(object):
         self.init_watch_streak()
 
     def encode_payload(self) -> dict:
+        if not self.payload:
+            return {"data": ""}
         json_event = json.dumps(self.payload, separators=(",", ":"))
         return {"data": (b64encode(json_event.encode("utf-8"))).decode("utf-8")}
 
@@ -97,7 +99,5 @@ class Stream(object):
 
     def update_minute_watched(self):
         if self.__minute_watched_timestamp != 0:
-            self.minute_watched += round(
-                max(0.0, time.time() - self.__minute_watched_timestamp) / 60, 5
-            )
+            self.minute_watched += max(0.0, time.time() - self.__minute_watched_timestamp) / 60
         self.__minute_watched_timestamp = time.time()

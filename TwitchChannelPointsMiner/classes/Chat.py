@@ -34,8 +34,9 @@ class ClientIRC(SingleServerIRCBot):
             wrapper=functools.partial(ssl_context.wrap_socket, server_hostname=IRC)
         )
 
+        password = token if token.startswith("oauth:") else f"oauth:{token}"
         super(ClientIRC, self).__init__(
-            [(IRC, IRC_PORT, f"oauth:{token}")],
+            [(IRC, IRC_PORT, password)],
             username,
             username,
             connect_factory=ssl_factory,
@@ -52,7 +53,7 @@ class ClientIRC(SingleServerIRCBot):
                 self.reactor.process_once(timeout=0.2)
                 time.sleep(0.01)
             except Exception as e:
-                if self.__active is False:
+                if not self.__active:
                     break
                 logger.error(
                     f"Exception raised: {e}. Thread is active: {self.__active}"
@@ -63,32 +64,24 @@ class ClientIRC(SingleServerIRCBot):
         if self.connection is not None:
             self.connection.disconnect(msg)
 
-    """
-    def on_join(self, connection, event):
-        logger.info(f"Event: {event}", extra={"emoji": ":speech_balloon:"})
-    """
-
-    # """
     def on_pubmsg(self, connection, event):
+        if not event.arguments:
+            return
         msg = event.arguments[0]
         mention = None
 
         nickname = getattr(self, "_nickname", None) or getattr(self, "nickname", None) or getattr(self, "_realname", None) or ""
-        if Settings.disable_at_in_nickname is True:
+        if not nickname:
+            return
+        if Settings.disable_at_in_nickname:
             mention = f"{nickname.lower()}"
         else:
             mention = f"@{nickname.lower()}"
 
-        # also self._realname
-        # if msg.startswith(f"@{self._nickname}"):
-        if mention != None and mention in msg.lower():
-            # nickname!username@nickname.tmi.twitch.tv
+        if mention is not None and mention in msg.lower():
             nick = event.source.split("!", 1)[0]
-            # chan = event.target
-
             logger.info(f"{nick} at {self.channel} wrote: {msg}", extra={
                         "emoji": ":speech_balloon:", "event": Events.CHAT_MENTION})
-    # """
 
 
 class ThreadChat(Thread):
@@ -96,7 +89,7 @@ class ThreadChat(Thread):
         return None
 
     def __init__(self, username, token, channel):
-        super(ThreadChat, self).__init__()
+        super(ThreadChat, self).__init__(daemon=True)
 
         self.username = username
         self.token = token

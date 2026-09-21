@@ -141,14 +141,13 @@ class Twitch(object):
             headers = {"User-Agent": USER_AGENTS["Linux"]["FIREFOX"]}
 
             main_page_request = requests.get(
-                streamer.streamer_url, headers=headers)
+                streamer.streamer_url, headers=headers, timeout=20)
             response = main_page_request.text
-            # logger.info(response)
             regex_settings = "(https://static.twitchcdn.net/config/settings.*?js|https://assets.twitch.tv/config/settings.*?.js)"
             settings_match = re.search(regex_settings, response)
             if settings_match:
                 settings_url = settings_match.group(1)
-                settings_request = requests.get(settings_url, headers=headers)
+                settings_request = requests.get(settings_url, headers=headers, timeout=20)
                 response = settings_request.text
                 regex_spade = '"spade_url":"(.*?)"'
                 spade_match = re.search(regex_spade, response)
@@ -302,7 +301,7 @@ class Twitch(object):
                 f"Data: {json_data}, Status code: {response.status_code}, Content: {response.text}"
             )
             return response.json()
-        except requests.exceptions.RequestException as e:
+        except (requests.exceptions.RequestException, ValueError, json.JSONDecodeError) as e:
             op_name = json_data.get("operationName") if isinstance(json_data, dict) else "batch_request"
             logger.error(
                 f"Error with GQLOperations ({op_name}): {e}"
@@ -366,8 +365,10 @@ class Twitch(object):
             return False"""
 
     def update_client_version(self):
+        if self.client_version is not None:
+            return self.client_version
         try:
-            response = requests.get(URL, **self.__request_options())
+            response = requests.get(URL, timeout=15, **self.__request_options())
             if response.status_code != 200:
                 logger.debug(
                     f"Error with update_client_version: {response.status_code}"
@@ -408,7 +409,7 @@ class Twitch(object):
                 We'll take the first two streamers from the final list as they have the highest priority.
                 """
                 max_watch_amount = 2
-                streamers_watching = set()
+                streamers_watching = []
 
                 def remaining_watch_amount():
                     return max_watch_amount - len(streamers_watching)
@@ -416,7 +417,8 @@ class Twitch(object):
                 def add_to_watching(*streamer_indices: int):
                     for streamer_index in streamer_indices:
                         if remaining_watch_amount() > 0:
-                            streamers_watching.add(streamer_index)
+                            if streamer_index not in streamers_watching:
+                                streamers_watching.append(streamer_index)
                         else:
                             return False
                     return remaining_watch_amount() > 0
@@ -913,9 +915,14 @@ class Twitch(object):
             json_data = copy.deepcopy(GQLOperations.UserPointsContribution)
             json_data["variables"] = {"channelLogin": streamer.username}
             response = self.post_gql_request(json_data)
-            user_goal_contributions = response["data"]["user"]["channel"]["self"][
-                "communityPoints"
-            ]["goalContributions"]
+            if not response or not isinstance(response, dict) or "data" not in response or not response["data"]:
+                return
+            try:
+                user_goal_contributions = response["data"]["user"]["channel"]["self"][
+                    "communityPoints"
+                ]["goalContributions"]
+            except (KeyError, TypeError):
+                return
 
             logger.debug(
                 f"Found {len(user_goal_contributions)} community goals for the current stream"
@@ -925,7 +932,6 @@ class Twitch(object):
                 goal_id = goal_contribution["goal"]["id"]
                 goal = streamer.community_goals[goal_id]
                 if goal is None:
-                    # TODO should this trigger a new load context request
                     logger.error(
                         f"Unable to find context data for community goal {goal_id}"
                     )
@@ -964,8 +970,10 @@ class Twitch(object):
         }
 
         response = self.post_gql_request(json_data)
+        if not response or not isinstance(response, dict) or "data" not in response or not response["data"]:
+            return
 
-        error = response["data"]["contributeCommunityPointsCommunityGoal"]["error"]
+        error = response.get("data", {}).get("contributeCommunityPointsCommunityGoal", {}).get("error")
         if error:
             logger.error(
                 f"Unable to contribute channel points to community goal '{title}', reason '{error}'"

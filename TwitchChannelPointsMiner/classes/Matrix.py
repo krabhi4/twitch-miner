@@ -12,7 +12,7 @@ class Matrix(object):
 
     def __init__(self, username: str, password: str, homeserver: str, room_id: str, events: list):
         self.homeserver = homeserver
-        self.room_id = quote(room_id)
+        self.room_id = quote(room_id, safe="!:")
         self.events = {str(e) for e in events}
         self.access_token = None
 

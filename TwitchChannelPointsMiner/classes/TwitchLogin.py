@@ -368,14 +368,17 @@ class TwitchLogin(object):
         response = self.session.post(GQLOperations.url, json=json_data)
 
         if response.status_code == 200:
-            json_response = response.json()
-            if (
-                "data" in json_response
-                and "user" in json_response["data"]
-                and json_response["data"]["user"]["id"] is not None
-            ):
-                self.user_id = json_response["data"]["user"]["id"]
-                return True
+            try:
+                json_response = response.json()
+            except (ValueError, json.JSONDecodeError):
+                return False
+            if isinstance(json_response, dict):
+                data = json_response.get("data")
+                if isinstance(data, dict):
+                    user = data.get("user")
+                    if isinstance(user, dict) and user.get("id") is not None:
+                        self.user_id = user["id"]
+                        return True
         return False
 
     def get_auth_token(self):

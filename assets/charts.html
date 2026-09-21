@@ -6,9 +6,9 @@
     <title>Twitch Channel Points Miner</title>
     <link rel="icon" type="image/png" sizes="32x32" href="https://static.twitchcdn.net/assets/favicon-32-e29e246c157142c94346.png">
     <link rel="icon" type="image/png" sizes="16x16" href="https://static.twitchcdn.net/assets/favicon-16-52e571ffea063af7a7f4.png">
-    <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.42.0"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.42.0" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js" crossorigin="anonymous"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet" crossorigin="anonymous" />
     <link href="{{url_for('static', filename='style.css')}}" rel="stylesheet" />
     <link href="{{url_for('static', filename='dark-theme.css')}}" rel="stylesheet" />
 </head>
@@ -53,7 +53,7 @@
                         <i class="fa-solid fa-sun icon-light"></i>
                     </span>
                 </label>
-                <a href="/logs" class="btn-action" target="_blank" title="Live application logs">
+                <a href="/logs" class="btn-action" target="_blank" rel="noopener noreferrer" title="Live application logs">
                     <i class="fa-solid fa-file-lines"></i>
                     <span>Logs</span>
                 </a>
@@ -222,14 +222,19 @@
                 grid: { borderColor: darkMode ? "rgba(255, 255, 255, 0.08)" : "#e5e7eb" }
             });
         }
-        localStorage.setItem("dark-mode", darkMode);
+        try {
+            localStorage.setItem("dark-mode", darkMode);
+        } catch (e) {}
     }
-    var savedDark = localStorage.getItem("dark-mode");
-    var isDark = savedDark === null ? true : savedDark === "true";
+    let savedDark = null;
+    try {
+        savedDark = localStorage.getItem("dark-mode");
+    } catch (e) {}
+    const isDark = savedDark === null ? true : savedDark === "true";
     $('#dark-mode').prop("checked", isDark);
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
-    var refresh = parseInt("{{ refresh }}", 10);
-    var daysAgo = parseInt("{{ daysAgo }}", 10);
+    let refresh = parseInt({{ refresh|tojson }}, 10);
+    let daysAgo = parseInt({{ daysAgo|tojson }}, 10);
     if (isNaN(refresh) || refresh <= 0) { refresh = 60; }
     if (isNaN(daysAgo) || daysAgo < 0) { daysAgo = 7; }
 </script>

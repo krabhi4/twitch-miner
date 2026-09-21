@@ -87,13 +87,13 @@ a:hover {
   width: 34px;
   height: 34px;
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, #9146ff, #772ce8);
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
   display: flex;
   align-items: center;
   justify-content: center;
   color: #ffffff;
   font-size: 18px;
-  box-shadow: 0 2px 8px rgba(145, 70, 255, 0.35);
+  box-shadow: 0 2px 8px var(--accent-soft);
   flex-shrink: 0;
 }
 
@@ -210,7 +210,7 @@ a:hover {
 }
 
 .theme-toggle input:checked + .theme-toggle-slider::after {
-  transform: translateX(20px);
+  transform: translateX(22px);
 }
 
 .icon-dark, .icon-light {
@@ -219,7 +219,7 @@ a:hover {
 }
 
 .icon-dark {
-  color: #ffffff;
+  color: var(--text-muted);
 }
 
 .icon-light {
@@ -240,6 +240,16 @@ a:hover {
   font-weight: 500;
   transition: all 0.15s ease;
   white-space: nowrap;
+}
+
+.btn-action:focus-visible,
+.btn-action-icon:focus-visible,
+.btn-small:focus-visible,
+.tab-btn:focus-visible,
+.preset-btn:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--border-focus);
 }
 
 .btn-action:hover {

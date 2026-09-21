@@ -1,6 +1,7 @@
 import copy
 from enum import Enum, auto
 from random import uniform
+from typing import Tuple
 
 from millify import millify
 
@@ -66,7 +67,7 @@ class FilterCondition(object):
         "value",
     ]
 
-    def __init__(self, by=None, where=None, value=None, decision=None):
+    def __init__(self, by=None, where=None, value=None):
         self.by = by
         self.where = where
         self.value = value
@@ -196,7 +197,12 @@ class Bet(object):
         return f"Bet(total_users={millify(self.total_users)}, total_points={millify(self.total_points)}, decision={self.decision})\n\t\t{outcomes_str}"
 
     def get_decision(self, parsed=False):
-        decision = self.outcomes[self.decision["choice"]]
+        if not self.decision or self.decision.get("choice") is None:
+            return None
+        choice = self.decision["choice"]
+        if not (0 <= choice < len(self.outcomes)):
+            return None
+        decision = self.outcomes[choice]
         return decision if parsed is False else Bet.__parse_outcome(decision)
 
     @staticmethod
@@ -246,7 +252,7 @@ class Bet(object):
         else:
             return 0
 
-    def skip(self) -> bool:
+    def skip(self) -> Tuple[bool, int]:
         if self.settings.filter_condition is not None:
             key = self.settings.filter_condition.by
             condition = self.settings.filter_condition.where
@@ -263,8 +269,10 @@ class Bet(object):
                     for i in range(len(self.outcomes))
                 )
             else:
-                outcome_index = self.decision["choice"]
-                compared_value = self.outcomes[outcome_index][fixed_key]
+                outcome_index = self.decision.get("choice") if self.decision else None
+                if outcome_index is None or not (0 <= outcome_index < len(self.outcomes)):
+                    return True, 0
+                compared_value = self.outcomes[outcome_index].get(fixed_key, 0)
 
             if condition == Condition.GT:
                 if compared_value > value:

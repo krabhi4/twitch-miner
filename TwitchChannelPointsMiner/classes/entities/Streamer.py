@@ -144,6 +144,7 @@ class Streamer(object):
     def set_online(self):
         if self.is_online is False:
             self.online_at = time.time()
+            self.stream_up = time.time()
             self.is_online = True
             self.stream.init_watch_streak()
 
@@ -248,7 +249,9 @@ class Streamer(object):
             if event_type is not None:
                 data.update({"z": event_type.replace("_", " ").title()})
 
-        fname = os.path.join(Settings.analytics_path, f"{self.username}.json")
+        os.makedirs(Settings.analytics_path, exist_ok=True)
+        safe_username = os.path.basename(self.username)
+        fname = os.path.join(Settings.analytics_path, f"{safe_username}.json")
         temp_fname = fname + ".temp"
 
         with self.mutex:

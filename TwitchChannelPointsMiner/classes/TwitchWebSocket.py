@@ -50,12 +50,18 @@ class TwitchWebSocket(WebSocketApp):
     def send(self, request):
         try:
             request_str = json.dumps(request, separators=(",", ":"))
-            if isinstance(request, dict) and "data" in request and isinstance(request["data"], dict) and "auth_token" in request["data"]:
-                sanitized = copy.deepcopy(request)
-                sanitized["data"]["auth_token"] = "***"
-                logger.debug(f"#{self.index} - Send: {json.dumps(sanitized, separators=(',', ':'))}")
-            else:
-                logger.debug(f"#{self.index} - Send: {request_str}")
+        except (TypeError, ValueError) as err:
+            logger.error(f"#{self.index} - Failed to serialize WebSocket request: {err}")
+            return
+
+        if isinstance(request, dict) and "data" in request and isinstance(request["data"], dict) and "auth_token" in request["data"]:
+            sanitized = copy.deepcopy(request)
+            sanitized["data"]["auth_token"] = "***"
+            logger.debug(f"#{self.index} - Send: {json.dumps(sanitized, separators=(',', ':'))}")
+        else:
+            logger.debug(f"#{self.index} - Send: {request_str}")
+
+        try:
             super().send(request_str)
         except WebSocketConnectionClosedException:
             logger.debug(f"#{self.index} - WebSocket closed while sending")

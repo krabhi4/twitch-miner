@@ -11,13 +11,14 @@ def read(fname):
 
 metadata = dict(
     re.findall(
-        r"""__([a-z]+)__ = "([^"]+)""", read("TwitchChannelPointsMiner/__init__.py")
+        r"""__([a-z]+)__\s*=\s*['"]([^'"]+)['"]""",
+        read("TwitchChannelPointsMiner/__init__.py"),
     )
 )
 
 setuptools.setup(
     name="Twitch-Channel-Points-Miner-v2",
-    version=metadata["version"],
+    version=metadata.get("version", "0.0.0"),
     author="Tkd-Alex (Alessandro Maggio), rdavydov (Roman Davydov), krabhi4",
     author_email="kabhi87654@gmail.com",
     description="A simple script that will watch a stream for you and earn the channel points.",
@@ -33,14 +34,16 @@ setuptools.setup(
         "python-dateutil",
         "emoji",
         "millify",
-        "pre-commit",
         "colorama",
         "flask",
         "irc",
         "pandas",
         "pytz",
-        "validators"
+        "validators",
     ],
+    extras_require={
+        "dev": ["pre-commit"],
+    },
     long_description=read("README.md"),
     long_description_content_type="text/markdown",
     classifiers=[

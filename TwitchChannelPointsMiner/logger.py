@@ -5,7 +5,7 @@ import queue
 import pytz
 import sys
 from datetime import datetime
-from logging.handlers import QueueHandler, QueueListener, RotatingFileHandler, TimedRotatingFileHandler
+from logging.handlers import QueueHandler, QueueListener, RotatingFileHandler
 from pathlib import Path
 
 import emoji
@@ -208,7 +208,8 @@ class GlobalFormatter(logging.Formatter):
             # Full remove using a method from utils.
             record.msg = remove_emoji(record.msg)
 
-        record.msg = self.settings.username + record.msg
+        prefix = self.settings.username if self.settings.username is not None else ""
+        record.msg = prefix + record.msg
 
         if hasattr(record, "event"):
             self.telegram(record)
@@ -226,54 +227,60 @@ class GlobalFormatter(logging.Formatter):
 
         return super().format(record)
 
+    def _safe_send(self, client, msg, event):
+        try:
+            client.send(msg, event)
+        except Exception:
+            logging.getLogger(__name__).exception("Failed to send notification")
+
     def telegram(self, record):
         skip_telegram = hasattr(record, "skip_telegram") and record.skip_telegram is True
         if self.settings.telegram is not None and not skip_telegram:
             for client in self.settings.telegram:
                 if client.chat_id != 123456789:
-                    client.send(record.msg, record.event)
+                    self._safe_send(client, record.msg, record.event)
 
     def discord(self, record):
         skip_discord = hasattr(record, "skip_discord") and record.skip_discord is True
         if self.settings.discord is not None and not skip_discord:
             for client in self.settings.discord:
                 if client.webhook_api != "https://discord.com/api/webhooks/0123456789/0a1B2c3D4e5F6g7H8i9J":
-                    client.send(record.msg, record.event)
+                    self._safe_send(client, record.msg, record.event)
 
     def webhook(self, record):
         skip_webhook = hasattr(record, "skip_webhook") and record.skip_webhook is True
         if self.settings.webhook is not None and not skip_webhook:
             for client in self.settings.webhook:
                 if client.endpoint != "https://example.com/webhook":
-                    client.send(record.msg, record.event)
+                    self._safe_send(client, record.msg, record.event)
 
     def matrix(self, record):
         skip_matrix = hasattr(record, "skip_matrix") and record.skip_matrix is True
         if self.settings.matrix is not None and not skip_matrix:
             for client in self.settings.matrix:
                 if client.room_id != "..." and client.access_token:
-                    client.send(record.msg, record.event)
+                    self._safe_send(client, record.msg, record.event)
 
     def pushover(self, record):
         skip_pushover = hasattr(record, "skip_pushover") and record.skip_pushover is True
         if self.settings.pushover is not None and not skip_pushover:
             for client in self.settings.pushover:
                 if client.userkey != "YOUR-ACCOUNT-TOKEN" and client.token != "YOUR-APPLICATION-TOKEN":
-                    client.send(record.msg, record.event)
+                    self._safe_send(client, record.msg, record.event)
 
     def gotify(self, record):
         skip_gotify = hasattr(record, "skip_gotify") and record.skip_gotify is True
         if self.settings.gotify is not None and not skip_gotify:
             for client in self.settings.gotify:
                 if client.endpoint != "https://example.com/message?token=TOKEN":
-                    client.send(record.msg, record.event)
+                    self._safe_send(client, record.msg, record.event)
 
     def ntfy(self, record):
         skip_ntfy = hasattr(record, "skip_ntfy") and record.skip_ntfy is True
         if self.settings.ntfy is not None and not skip_ntfy:
             for client in self.settings.ntfy:
                 if client.endpoint != "https://ntfy.example.com/mytopic":
-                    client.send(record.msg, record.event)
+                    self._safe_send(client, record.msg, record.event)
 
 
 def configure_loggers(username, settings):
@@ -313,10 +320,11 @@ def configure_loggers(username, settings):
     if settings.save is True:
         logs_path = os.path.join(Path().absolute(), "logs")
         Path(logs_path).mkdir(parents=True, exist_ok=True)
+        safe_username = os.path.basename(username) if username else "miner"
         if settings.auto_clear is True:
             logs_file = os.path.join(
                 logs_path,
-                f"{username}.log",
+                f"{safe_username}.log",
             )
             file_handler = RotatingFileHandler(
                 logs_file,
@@ -329,7 +337,7 @@ def configure_loggers(username, settings):
             tz = getattr(console_handler.formatter, "timezone", None) or None
             logs_file = os.path.join(
                 logs_path,
-                f"{username}.{datetime.now(tz).strftime('%Y%m%d-%H%M%S')}.log",
+                f"{safe_username}.{datetime.now(tz).strftime('%Y%m%d-%H%M%S')}.log",
             )
             file_handler = logging.FileHandler(logs_file, "w", "utf-8")
 

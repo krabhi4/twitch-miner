@@ -206,7 +206,7 @@
             <button class="btn" id="btn-clear">
                 <i class="fa-solid fa-eraser"></i> Clear
             </button>
-            <a href="/log?raw=true" class="btn" target="_blank">
+            <a href="/log?raw=true" class="btn" target="_blank" rel="noopener noreferrer">
                 <i class="fa-solid fa-download"></i> Raw Log
             </a>
             <a href="/" class="btn btn-primary">
@@ -221,6 +221,7 @@
         let offset = 0;
         let active = true;
         let timer = null;
+        let abortController = null;
         const terminal = document.getElementById('log-terminal');
         const statusEl = document.getElementById('live-status');
         const toggleBtn = document.getElementById('btn-toggle');
@@ -231,20 +232,32 @@
 
         function poll() {
             if (!active) return;
-            fetch('/log?lastIndex=' + offset)
+            if (abortController) {
+                abortController.abort();
+            }
+            abortController = new AbortController();
+            fetch('/log?lastIndex=' + offset, { signal: abortController.signal })
                 .then(res => {
+                    if (!res.ok) {
+                        throw new Error('HTTP ' + res.status);
+                    }
                     const off = res.headers.get('X-Log-Offset');
-                    if (off !== null) offset = parseInt(off, 10);
+                    if (off !== null) {
+                        const parsed = parseInt(off, 10);
+                        if (Number.isInteger(parsed) && parsed >= 0) {
+                            offset = parsed;
+                        }
+                    }
                     return res.text();
                 })
                 .then(text => {
                     if (text) {
-                        if (terminal.innerText === 'Connecting to log stream...') {
-                            terminal.innerText = '';
+                        if (terminal.textContent === 'Connecting to log stream...') {
+                            terminal.textContent = '';
                         }
-                        terminal.innerText += text;
-                        if (terminal.innerText.length > 400000) {
-                            terminal.innerText = terminal.innerText.slice(-200000);
+                        terminal.textContent += text;
+                        if (terminal.textContent.length > 400000) {
+                            terminal.textContent = terminal.textContent.slice(-200000);
                         }
                         if (autoScrollCheck.checked) {
                             terminal.scrollTop = terminal.scrollHeight;
@@ -254,7 +267,8 @@
                         timer = setTimeout(poll, 1500);
                     }
                 })
-                .catch(() => {
+                .catch(err => {
+                    if (err.name === 'AbortError') return;
                     if (active) {
                         timer = setTimeout(poll, 4000);
                     }
@@ -275,6 +289,10 @@
                 statusEl.innerText = 'PAUSED';
                 statusEl.className = 'status-badge paused';
                 clearTimeout(timer);
+                if (abortController) {
+                    abortController.abort();
+                    abortController = null;
+                }
             }
         });
 

@@ -31,24 +31,27 @@ var options = {
     noData: { text: 'No data – select a streamer' },
     grid: { borderColor: 'rgba(255, 255, 255, 0.08)' }
 };
-var chart = new ApexCharts(document.querySelector("#chart"), options);
-var currentStreamer = null;
-var annotations = [];
-var streamersList = [];
-var streamersDetails = [];
-var sortBy = "Points descending";
-var sortField = 'points';
-var defaultDays = (typeof daysAgo !== 'undefined' && !isNaN(daysAgo)) ? daysAgo : 7;
-var startDate = new Date(); startDate.setDate(startDate.getDate() - defaultDays);
-var endDate = new Date();
-var compareMode = false;
-var selectedCompare = new Set();
-var historyRows = [];
-var historyFiltered = [];
-var historyPage = 1; var historyPageSize = 25; var historySortField='x'; var historySortAsc=false;
-var enumsCache = null;
+const chart = new ApexCharts(document.querySelector("#chart"), options);
+let currentStreamer = null;
+let annotations = [];
+let streamersList = [];
+let streamersDetails = [];
+let sortBy = "Points descending";
+let sortField = 'points';
+let defaultDays = (typeof daysAgo !== 'undefined' && !isNaN(daysAgo)) ? daysAgo : 7;
+let startDate = new Date(); startDate.setDate(startDate.getDate() - defaultDays);
+let endDate = new Date();
+let compareMode = false;
+let selectedCompare = new Set();
+let historyRows = [];
+let historyFiltered = [];
+let historyPage = 1;
+let historyPageSize = 25;
+let historySortField = 'x';
+let historySortAsc = false;
+let enumsCache = null;
 
-function escapeHtml(s){ if(s==null) return ''; return String(s).replace(/[&<>"']/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])); }
+function escapeHtml(s){ if(s === null || s === undefined) return ''; return String(s).replace(/[&<>"']/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])); }
 function millify(n){ if(n==null) return '-'; if(n>=1000000) return (n/1000000).toFixed(1)+'M'; if(n>=1000) return (n/1000).toFixed(1)+'k'; return String(n); }
 function formatDate(d){ const dd=new Date(d); const m=''+(dd.getMonth()+1), day=''+dd.getDate(), y=dd.getFullYear(); return [y, m.padStart(2,'0'), day.padStart(2,'0')].join('-'); }
 function formatDateTime(ts){ return new Date(ts).toLocaleString(); }
@@ -165,17 +168,19 @@ function renderStreamers(){
     filtered.forEach((streamer)=>{
         const name = streamer.displayName || streamer.name.replace(".json","");
         const isActive = currentStreamer === streamer.name;
-        let display = name;
-        if(sortField==='points') display = `<span class="points">${millify(streamer.points)}</span> ${name}`;
-        else if(sortField==='total_gained') display = `<span class="points">+${millify(streamer.total_gained)}</span> ${name}`;
-        else if(sortField==='last_activity') display = `<span class="meta">${formatDate(streamer.last_activity)}</span> ${name}`;
+        let display = escapeHtml(name);
+        if(sortField==='points') display = `<span class="points">${millify(streamer.points)}</span> ${escapeHtml(name)}`;
+        else if(sortField==='total_gained') display = `<span class="points">+${millify(streamer.total_gained)}</span> ${escapeHtml(name)}`;
+        else if(sortField==='last_activity') display = `<span class="meta">${formatDate(streamer.last_activity)}</span> ${escapeHtml(name)}`;
         if(streamer.is_online) display = `<span class="dot online" title="Online"></span> `+display;
         else if(streamer.is_online===false) display = `<span class="dot offline" title="Offline"></span> `+display;
         const activeClass = isActive ? 'is-active' : '';
         const compareChecked = selectedCompare.has(name) ? 'checked' : '';
-        const checkbox = compareMode ? `<input type="checkbox" class="compare-check" data-name="${name}" ${compareChecked} style="margin-right:6px">` : '';
+        const checkbox = compareMode ? `<input type="checkbox" class="compare-check" data-name="${escapeHtml(name)}" ${compareChecked} style="margin-right:6px">` : '';
         const wrBadge = (streamer.bets && streamer.bets.placed > 0) ? `<span class="meta" style="margin-left:auto">${streamer.bets.win_rate}% WR</span>` : '';
-        const li = `<li class="${activeClass}"><a onClick="handleStreamerClick('${streamer.name}', '${name}'); return false;">${checkbox}${display}${wrBadge}</a></li>`;
+        const safeFileName = escapeHtml(streamer.name).replace(/'/g, "\\'");
+        const safeDisplayName = escapeHtml(name).replace(/'/g, "\\'");
+        const li = `<li class="${activeClass}"><a onClick="handleStreamerClick('${safeFileName}', '${safeDisplayName}'); return false;">${checkbox}${display}${wrBadge}</a></li>`;
         $("#streamers-list").append(li);
         idx++;
     });
@@ -185,7 +190,6 @@ function renderStreamers(){
         const target = exists ? saved : filtered[0].name;
         const targetDisplay = filtered.find(s=> s.name===target).displayName || target.replace(".json","");
         changeStreamer(target, 1);
-    } else if(currentStreamer){
     }
     $('.compare-check').change(function(e){
         e.stopPropagation();
@@ -407,9 +411,11 @@ function renderHistoryTable(){
     const start=(historyPage-1)*historyPageSize;
     const pageRows=historyFiltered.slice(start, start+historyPageSize);
     pageRows.forEach(r=>{
-        const badge=`<span class="badge-type ${r.type}">${r.type}</span>`;
-        const bal = r.balance!=null ? millify(r.balance) : '-';
-        tbody.append(`<tr><td>${r.datetime? new Date(r.x).toLocaleString(): '-'}</td><td>${r.streamer}</td><td>${badge}</td><td>${r.text}</td><td>${bal}</td></tr>`);
+        const safeType = escapeHtml(r.type);
+        const badge = `<span class="badge-type ${safeType}">${safeType}</span>`;
+        const bal = (r.balance !== null && r.balance !== undefined) ? millify(r.balance) : '-';
+        const dateStr = r.datetime ? new Date(r.x).toLocaleString() : '-';
+        tbody.append(`<tr><td>${escapeHtml(dateStr)}</td><td>${escapeHtml(r.streamer)}</td><td>${badge}</td><td>${escapeHtml(r.text)}</td><td>${escapeHtml(bal)}</td></tr>`);
     });
     let pagHtml='';
     for(let i=1;i<=totalPages;i++){ pagHtml+=`<button class="btn-small ${i===historyPage?'active':''}" onclick="goHistoryPage(${i})">${i}</button>`; }
@@ -508,67 +514,69 @@ function renderPerChannel(streamers){
     const c=$('#per-channel-list'); c.empty();
     if(!streamers || Object.keys(streamers).length===0){ c.html('<p class="empty">No per-channel overrides. Global settings apply to all. Click Add to create per-channel config.</p>'); return; }
     Object.entries(streamers).forEach(([name, cfg])=>{
+        const safeName = escapeHtml(name);
         const hasCfg = cfg!==null && cfg!==undefined;
         const bet = hasCfg && cfg.bet ? cfg.bet : {};
         const fc = bet.filter_condition||{};
         const row=$(`
-            <div class="channel-row" id="ch-${name}">
+            <div class="channel-row" id="ch-${safeName}">
                 <div class="channel-header" onclick="$(this).parent().toggleClass('open')">
-                    <span class="name"><i class="fa-solid fa-user"></i> ${name} ${hasCfg?'':'<span style="color:var(--muted);font-weight:400">(using global)</span>'}</span>
+                    <span class="name"><i class="fa-solid fa-user"></i> ${safeName} ${hasCfg?'':'<span style="color:var(--muted);font-weight:400">(using global)</span>'}</span>
                     <div class="channel-actions">
-                        <button class="btn-small" onclick="event.stopPropagation(); saveChannel('${name}')"><i class="fa-solid fa-floppy-disk"></i> Save</button>
-                        <button class="btn-small" onclick="event.stopPropagation(); deleteChannel('${name}')" title="Delete"><i class="fa-solid fa-trash"></i></button>
+                        <button class="btn-small" onclick="event.stopPropagation(); saveChannel('${safeName}')"><i class="fa-solid fa-floppy-disk"></i> Save</button>
+                        <button class="btn-small" onclick="event.stopPropagation(); deleteChannel('${safeName}')" title="Delete"><i class="fa-solid fa-trash"></i></button>
                         <i class="fa-solid fa-chevron-down"></i>
                     </div>
                 </div>
                 <div class="channel-body">
                     <div class="form-grid">
-                        <div class="form-group"><label>Make predictions</label><select id="${name}_make_predictions"><option value="">Global</option><option value="true">True</option><option value="false">False</option></select></div>
-                        <div class="form-group"><label>Follow raid</label><select id="${name}_follow_raid"><option value="">Global</option><option value="true">True</option><option value="false">False</option></select></div>
-                        <div class="form-group"><label>Claim drops</label><select id="${name}_claim_drops"><option value="">Global</option><option value="true">True</option><option value="false">False</option></select></div>
-                        <div class="form-group"><label>Chat</label><select id="${name}_chat"><option value="">Global</option></select></div>
-                        <div class="form-group"><label>Strategy</label><select id="${name}_strategy"><option value="">Global</option></select></div>
-                        <div class="form-group"><label>Percentage</label><input id="${name}_percentage" type="number" placeholder="Global"></div>
-                        <div class="form-group"><label>Max points</label><input id="${name}_max_points" type="number" placeholder="Global"></div>
-                        <div class="form-group"><label>Stealth</label><select id="${name}_stealth_mode"><option value="">Global</option><option value="true">True</option><option value="false">False</option></select></div>
-                        <div class="form-group"><label>Delay mode</label><select id="${name}_delay_mode"><option value="">Global</option></select></div>
-                        <div class="form-group"><label>Delay</label><input id="${name}_delay" type="number" step="0.1" placeholder="Global"></div>
-                        <div class="form-group"><label>Filter by</label><select id="${name}_filter_by"><option value="">None/Global</option></select></div>
-                        <div class="form-group"><label>Where</label><select id="${name}_filter_where"><option value="">-</option></select></div>
-                        <div class="form-group"><label>Value</label><input id="${name}_filter_value" type="number" placeholder="Global"></div>
+                        <div class="form-group"><label>Make predictions</label><select id="${safeName}_make_predictions"><option value="">Global</option><option value="true">True</option><option value="false">False</option></select></div>
+                        <div class="form-group"><label>Follow raid</label><select id="${safeName}_follow_raid"><option value="">Global</option><option value="true">True</option><option value="false">False</option></select></div>
+                        <div class="form-group"><label>Claim drops</label><select id="${safeName}_claim_drops"><option value="">Global</option><option value="true">True</option><option value="false">False</option></select></div>
+                        <div class="form-group"><label>Chat</label><select id="${safeName}_chat"><option value="">Global</option></select></div>
+                        <div class="form-group"><label>Strategy</label><select id="${safeName}_strategy"><option value="">Global</option></select></div>
+                        <div class="form-group"><label>Percentage</label><input id="${safeName}_percentage" type="number" placeholder="Global"></div>
+                        <div class="form-group"><label>Max points</label><input id="${safeName}_max_points" type="number" placeholder="Global"></div>
+                        <div class="form-group"><label>Stealth</label><select id="${safeName}_stealth_mode"><option value="">Global</option><option value="true">True</option><option value="false">False</option></select></div>
+                        <div class="form-group"><label>Delay mode</label><select id="${safeName}_delay_mode"><option value="">Global</option></select></div>
+                        <div class="form-group"><label>Delay</label><input id="${safeName}_delay" type="number" step="0.1" placeholder="Global"></div>
+                        <div class="form-group"><label>Filter by</label><select id="${safeName}_filter_by"><option value="">None/Global</option></select></div>
+                        <div class="form-group"><label>Where</label><select id="${safeName}_filter_where"><option value="">-</option></select></div>
+                        <div class="form-group"><label>Value</label><input id="${safeName}_filter_value" type="number" placeholder="Global"></div>
                     </div>
-                    <div class="save-status" id="${name}-status"></div>
+                    <div class="save-status" id="${safeName}-status"></div>
                 </div>
             </div>
         `);
         c.append(row);
         if(enumsCache){
-            $(`#${name}_chat`).append(enumsCache.chat_presences.map(v=>`<option value="${v}">${v}</option>`).join(''));
-            $(`#${name}_strategy`).append(enumsCache.strategies.map(v=>`<option value="${v}">${v}</option>`).join(''));
-            $(`#${name}_delay_mode`).append(enumsCache.delay_modes.map(v=>`<option value="${v}">${v}</option>`).join(''));
-            $(`#${name}_filter_by`).append(enumsCache.outcome_keys.map(v=>`<option value="${v}">${v}</option>`).join(''));
-            $(`#${name}_filter_where`).append(enumsCache.conditions.map(v=>`<option value="${v}">${v}</option>`).join(''));
+            $(`#${safeName}_chat`).append(enumsCache.chat_presences.map(v=>`<option value="${v}">${v}</option>`).join(''));
+            $(`#${safeName}_strategy`).append(enumsCache.strategies.map(v=>`<option value="${v}">${v}</option>`).join(''));
+            $(`#${safeName}_delay_mode`).append(enumsCache.delay_modes.map(v=>`<option value="${v}">${v}</option>`).join(''));
+            $(`#${safeName}_filter_by`).append(enumsCache.outcome_keys.map(v=>`<option value="${v}">${v}</option>`).join(''));
+            $(`#${safeName}_filter_where`).append(enumsCache.conditions.map(v=>`<option value="${v}">${v}</option>`).join(''));
         }
         if(hasCfg){
-            if(cfg.make_predictions!==undefined && cfg.make_predictions!==null) $(`#${name}_make_predictions`).val(String(cfg.make_predictions));
-            if(cfg.follow_raid!==undefined && cfg.follow_raid!==null) $(`#${name}_follow_raid`).val(String(cfg.follow_raid));
-            if(cfg.claim_drops!==undefined && cfg.claim_drops!==null) $(`#${name}_claim_drops`).val(String(cfg.claim_drops));
-            if(cfg.chat) $(`#${name}_chat`).val(cfg.chat);
-            if(bet.strategy) $(`#${name}_strategy`).val(bet.strategy);
-            if(bet.percentage!==undefined) $(`#${name}_percentage`).val(bet.percentage);
-            if(bet.max_points!==undefined) $(`#${name}_max_points`).val(bet.max_points);
-            if(bet.stealth_mode!==undefined) $(`#${name}_stealth_mode`).val(String(bet.stealth_mode));
-            if(bet.delay_mode) $(`#${name}_delay_mode`).val(bet.delay_mode);
-            if(bet.delay!==undefined) $(`#${name}_delay`).val(bet.delay);
-            if(fc.by) $(`#${name}_filter_by`).val(fc.by);
-            if(fc.where) $(`#${name}_filter_where`).val(fc.where);
-            if(fc.value!==undefined) $(`#${name}_filter_value`).val(fc.value);
+            if(cfg.make_predictions!==undefined && cfg.make_predictions!==null) $(`#${safeName}_make_predictions`).val(String(cfg.make_predictions));
+            if(cfg.follow_raid!==undefined && cfg.follow_raid!==null) $(`#${safeName}_follow_raid`).val(String(cfg.follow_raid));
+            if(cfg.claim_drops!==undefined && cfg.claim_drops!==null) $(`#${safeName}_claim_drops`).val(String(cfg.claim_drops));
+            if(cfg.chat) $(`#${safeName}_chat`).val(cfg.chat);
+            if(bet.strategy) $(`#${safeName}_strategy`).val(bet.strategy);
+            if(bet.percentage!==undefined) $(`#${safeName}_percentage`).val(bet.percentage);
+            if(bet.max_points!==undefined) $(`#${safeName}_max_points`).val(bet.max_points);
+            if(bet.stealth_mode!==undefined) $(`#${safeName}_stealth_mode`).val(String(bet.stealth_mode));
+            if(bet.delay_mode) $(`#${safeName}_delay_mode`).val(bet.delay_mode);
+            if(bet.delay!==undefined) $(`#${safeName}_delay`).val(bet.delay);
+            if(fc.by) $(`#${safeName}_filter_by`).val(fc.by);
+            if(fc.where) $(`#${safeName}_filter_where`).val(fc.where);
+            if(fc.value!==undefined) $(`#${safeName}_filter_value`).val(fc.value);
         }
     });
 }
 function saveChannel(name){
-    const getVal=(id)=> $(`#${name}_${id}`).val();
-    const getNum=(id)=> { const v=getVal(id); return v===""||v===null? undefined : parseInt(v); };
+    const safeName = escapeHtml(name);
+    const getVal=(id)=> $(`#${safeName}_${id}`).val();
+    const getNum=(id)=> { const v=getVal(id); return v===""||v===null? undefined : parseInt(v, 10); };
     const getFloat=(id)=> { const v=getVal(id); return v===""||v===null? undefined : parseFloat(v); };
     const getBool=(id)=> { const v=getVal(id); return v===""||v===null? undefined : v==='true'; };
     const data={};
@@ -584,17 +592,17 @@ function saveChannel(name){
     const dmode=getVal('delay_mode'); if(dmode) bet.delay_mode=dmode;
     const del=getFloat('delay'); if(del!==undefined) bet.delay=del;
     const fby=getVal('filter_by'); const fwh=getVal('filter_where'); const fval=getVal('filter_value');
-    if(fby) bet.filter_condition={by:fby, where:fwh||'GTE', value: parseInt(fval||0)};
+    if(fby) bet.filter_condition={by:fby, where:fwh||'GTE', value: parseInt(fval||0, 10)};
     else if(Object.keys(bet).length>0) bet.filter_condition=null;
     if(Object.keys(bet).length>0) data.bet=bet;
-    $.ajax({url:`/api/config/streamer/${name}`, method:'PUT', contentType:'application/json', data: JSON.stringify(data), success:function(){
-        $(`#${name}-status`).text('Saved ✔').addClass('ok'); setTimeout(()=>$(`#${name}-status`).text(''),2000);
+    $.ajax({url:`/api/config/streamer/${encodeURIComponent(name)}`, method:'PUT', contentType:'application/json', data: JSON.stringify(data), success:function(){
+        $(`#${safeName}-status`).text('Saved ✔').addClass('ok'); setTimeout(()=>$(`#${safeName}-status`).text(''),2000);
         loadConfig();
-    }, error:function(xhr){ $(`#${name}-status`).text('Error '+xhr.responseText).addClass('err'); }});
+    }, error:function(xhr){ $(`#${safeName}-status`).text('Error '+xhr.responseText).addClass('err'); }});
 }
 function deleteChannel(name){
     if(!confirm(`Delete per-channel config for ${name}? (will fallback to global)`)) return;
-    $.ajax({url:`/api/config/streamer/${name}`, method:'DELETE', success:function(){ loadConfig(); }});
+    $.ajax({url:`/api/config/streamer/${encodeURIComponent(name)}`, method:'DELETE', success:function(){ loadConfig(); }});
 }
 function addStreamer(){
     const name=$('#new-streamer-name').val().trim().toLowerCase();
@@ -604,7 +612,10 @@ function addStreamer(){
 function renderPriority(priority){
     const c=$('#priority-editor'); c.empty();
     const list = priority && priority.length>0 ? priority : (enumsCache? enumsCache.priorities.slice(0,3): ['STREAK','DROPS','ORDER']);
-    c.html(list.map((p,i)=>`<div class="priority-item" draggable="true" data-p="${p}" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;margin-bottom:4px;background:var(--bg);cursor:move"><i class="fa-solid fa-grip"></i> ${i+1}. ${p} <button class="btn-small" style="float:right" onclick="removePriority('${p}')"><i class="fa-solid fa-xmark"></i></button></div>`).join('') + `<div style="margin-top:8px"><select id="new-priority-val" class="input"></select> <button class="btn-small" onclick="addPriority()"><i class="fa-solid fa-plus"></i> Add</button></div>`);
+    c.html(list.map((p,i)=>{
+        const safeP = escapeHtml(p);
+        return `<div class="priority-item" draggable="true" data-p="${safeP}" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;margin-bottom:4px;background:var(--bg);cursor:move"><i class="fa-solid fa-grip"></i> ${i+1}. ${safeP} <button class="btn-small" style="float:right" onclick="removePriority('${safeP}')"><i class="fa-solid fa-xmark"></i></button></div>`;
+    }).join('') + `<div style="margin-top:8px"><select id="new-priority-val" class="input"></select> <button class="btn-small" onclick="addPriority()"><i class="fa-solid fa-plus"></i> Add</button></div>`);
     if(enumsCache) $('#new-priority-val').html(enumsCache.priorities.map(v=>`<option value="${v}">${v}</option>`).join(''));
     let dragSrc=null;
     $('.priority-item').on('dragstart', function(e){ dragSrc=this; e.originalEvent.dataTransfer.effectAllowed='move'; });

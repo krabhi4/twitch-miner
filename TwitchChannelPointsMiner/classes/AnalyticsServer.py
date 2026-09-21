@@ -328,7 +328,7 @@ def compute_streamer_stats(streamer_file, username=None):
     z_counter = Counter([s.get("z", "Unknown") for s in series])
     gains_by_reason = defaultdict(int)
     for i in range(1, len(series)):
-        delta = series[i]["y"] - series[i-1]["y"]
+        delta = series[i].get("y", 0) - series[i-1].get("y", 0)
         if delta > 0:
             reason = series[i].get("z", "Unknown")
             gains_by_reason[reason] += delta
@@ -485,8 +485,6 @@ def check_assets():
                 download_assets(assets_folder, required_files)
                 break
 
-last_sent_log_index = 0
-
 class AnalyticsServer(Thread):
     def __init__(
         self,
@@ -509,7 +507,6 @@ class AnalyticsServer(Thread):
         self.miner = miner
 
         def generate_log():
-            global last_sent_log_index
             try:
                 last_received_index = int(request.args.get("lastIndex", 0))
             except (ValueError, TypeError):
@@ -535,7 +532,6 @@ class AnalyticsServer(Thread):
                         log_file.seek(last_received_index)
                     new_log_entries = log_file.read(256 * 1024)
                     new_offset = log_file.tell()
-                last_sent_log_index = new_offset
                 resp = Response(new_log_entries, status=200, mimetype="text/plain")
                 resp.headers["X-Log-Offset"] = str(new_offset)
                 resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
@@ -605,12 +601,9 @@ class AnalyticsServer(Thread):
                                 if fc is None:
                                     blive.filter_condition = None
                                 else:
-                                    try:
-                                        blive.filter_condition = FilterCondition(by=OutcomeKeys[fc["by"]] if fc.get("by") else None, where=Condition[fc["where"]] if fc.get("where") else None, value=fc.get("value"))
-                                        blive.filter_condition.by = fc.get("by")
-                                        blive.filter_condition.where = fc.get("where")
-                                        blive.filter_condition.value = fc.get("value")
-                                    except: pass
+                                     try:
+                                         blive.filter_condition = FilterCondition(by=OutcomeKeys[fc["by"]] if fc.get("by") else None, where=Condition[fc["where"]] if fc.get("where") else None, value=fc.get("value"))
+                                     except: pass
                 except Exception as e:
                     logger.error(f"Failed to apply live config: {e}")
             if "streamers" in data:
@@ -698,7 +691,7 @@ class AnalyticsServer(Thread):
             cfg = load_config_file(username) or {"global": default_global_config(), "streamers": {}, "priority": []}
             if cfg["streamers"].get(name):
                 return Response(json.dumps({"error": "already exists"}), status=409, mimetype="application/json")
-            cfg["streamers"][name] = settings if settings else None
+            cfg["streamers"][name] = settings if settings is not None else None
             save_config_file(username, cfg)
             return Response(json.dumps({"status": "created", "streamer": name}), status=201, mimetype="application/json")
 

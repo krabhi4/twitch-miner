@@ -17,7 +17,7 @@ class Gotify(object):
             try:
                 requests.post(
                     url=self.endpoint,
-                    data={
+                    json={
                         "message": dedent(message),
                         "priority": self.priority
                     },

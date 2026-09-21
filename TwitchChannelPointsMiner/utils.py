@@ -57,47 +57,46 @@ def get_user_agent(browser: str) -> str:
     # return USER_AGENTS["Android"]["App"]
 
 
+EMOJI_PATTERN = re.compile(
+    "["
+    "\U0001F600-\U0001F64F"
+    "\U0001F300-\U0001F5FF"
+    "\U0001F680-\U0001F6FF"
+    "\U0001F1E0-\U0001F1FF"
+    "\U00002500-\U00002587"
+    "\U00002589-\U00002BEF"
+    "\U00002702-\U000027B0"
+    "\U000024C2-\U00002587"
+    "\U00002589-\U0001F251"
+    "\U0001f926-\U0001f937"
+    "\U00010000-\U0010ffff"
+    "\u2640-\u2642"
+    "\u2600-\u2B55"
+    "\u200d"
+    "\u23cf"
+    "\u23e9"
+    "\u231a"
+    "\ufe0f"
+    "\u3030"
+    "\u231b"
+    "\u2328"
+    "\u23ea"
+    "\u23eb"
+    "\u23ec"
+    "\u23ed"
+    "\u23ee"
+    "\u23ef"
+    "\u23f0"
+    "\u23f1"
+    "\u23f2"
+    "\u23f3"
+    "]+",
+    flags=re.UNICODE,
+)
+
+
 def remove_emoji(string: str) -> str:
-    emoji_pattern = re.compile(
-        "["
-        "\U0001F600-\U0001F64F"  # emoticons
-        "\U0001F300-\U0001F5FF"  # symbols & pictographs
-        "\U0001F680-\U0001F6FF"  # transport & map symbols
-        "\U0001F1E0-\U0001F1FF"  # flags (iOS)
-        "\U00002500-\U00002587"  # chinese char
-        "\U00002589-\U00002BEF"  # I need Unicode Character “█” (U+2588)
-        "\U00002702-\U000027B0"
-        "\U00002702-\U000027B0"
-        "\U000024C2-\U00002587"
-        "\U00002589-\U0001F251"
-        "\U0001f926-\U0001f937"
-        "\U00010000-\U0010ffff"
-        "\u2640-\u2642"
-        "\u2600-\u2B55"
-        "\u200d"
-        "\u23cf"
-        "\u23e9"
-        "\u231a"
-        "\ufe0f"  # dingbats
-        "\u3030"
-        "\u231b"
-        "\u2328"
-        "\u23cf"
-        "\u23e9"
-        "\u23ea"
-        "\u23eb"
-        "\u23ec"
-        "\u23ed"
-        "\u23ee"
-        "\u23ef"
-        "\u23f0"
-        "\u23f1"
-        "\u23f2"
-        "\u23f3"
-        "]+",
-        flags=re.UNICODE,
-    )
-    return emoji_pattern.sub(r"", string)
+    return EMOJI_PATTERN.sub(r"", string) if string else ""
 
 
 def at_least_one_value_in_settings_is(items, attr, value=True):
@@ -151,13 +150,18 @@ def create_chunks(lst, n):
 
 def download_file(name, fpath):
     try:
+        url = f"{GITHUB_url.rstrip('/')}/{name.lstrip('/')}"
         r = requests.get(
-            path.join(GITHUB_url, name),
+            url,
             headers={"User-Agent": get_user_agent("FIREFOX")},
             stream=True,
             timeout=15,
         )
         if r.status_code == 200:
+            dir_path = path.dirname(fpath)
+            if dir_path:
+                import os
+                os.makedirs(dir_path, exist_ok=True)
             with open(fpath, "wb") as f:
                 for chunk in r.iter_content(chunk_size=1024):
                     if chunk:

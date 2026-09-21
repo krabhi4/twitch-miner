@@ -155,7 +155,7 @@ class TwitchChannelPointsMiner:
         self.session_id = str(uuid.uuid4())
         self.running = False
         self.start_datetime = None
-        self.original_streamers = []
+        self.original_streamers = {}
 
         self.logs_file, self.queue_listener = configure_loggers(
             self.username, logger_settings
@@ -254,7 +254,11 @@ class TwitchChannelPointsMiner:
                     streamers_dict[username] = streamer
 
             if followers is True:
-                followers_array = self.twitch.get_followers(order=followers_order)
+                try:
+                    followers_array = self.twitch.get_followers(order=followers_order)
+                except Exception as e:
+                    logger.error(f"Failed to load followers: {e}")
+                    followers_array = []
                 logger.info(
                     f"Load {len(followers_array)} followers from your profile!",
                     extra={"emoji": ":clipboard:"},
@@ -312,9 +316,9 @@ class TwitchChannelPointsMiner:
                         extra={"emoji": ":cry:"},
                     )
 
-            self.original_streamers = [
-                streamer.channel_points for streamer in self.streamers
-            ]
+            self.original_streamers = {
+                streamer.username: streamer.channel_points for streamer in self.streamers
+            }
 
             # If we have at least one streamer with settings = make_predictions True
             make_predictions = at_least_one_value_in_settings_is(
@@ -401,16 +405,18 @@ class TwitchChannelPointsMiner:
                 time.sleep(random.uniform(20, 60))
                 # Do an external control for WebSocket. Check if the thread is running
                 # Check if is not None because maybe we have already created a new connection on array+1 and now index is None
-                for index in range(0, len(self.ws_pool.ws)):
+                ws_snapshot = list(self.ws_pool.ws) if self.ws_pool else []
+                for index, ws in enumerate(ws_snapshot):
                     if (
-                        self.ws_pool.ws[index].is_reconnecting is False
-                        and self.ws_pool.ws[index].elapsed_last_ping() > 10
+                        ws is not None
+                        and ws.is_reconnecting is False
+                        and ws.elapsed_last_ping() > 10
                         and internet_connection_available() is True
                     ):
                         logger.info(
                             f"#{index} - The last PING was sent more than 10 minutes ago. Reconnecting to the WebSocket..."
                         )
-                        WebSocketsPool.handle_reconnection(self.ws_pool.ws[index])
+                        WebSocketsPool.handle_reconnection(ws)
 
                 if ((time.time() - refresh_context) // 60) >= 30:
                     refresh_context = time.time()
@@ -501,24 +507,22 @@ class TwitchChannelPointsMiner:
                     )
 
         print("")
-        for streamer_index in range(0, len(self.streamers)):
-            if self.streamers[streamer_index].history != {}:
-                gained = (
-                    self.streamers[streamer_index].channel_points
-                    - self.original_streamers[streamer_index]
-                )
+        for streamer in self.streamers:
+            if streamer.history != {}:
+                orig_points = self.original_streamers.get(streamer.username, streamer.channel_points)
+                gained = streamer.channel_points - orig_points
                 
                 from colorama import Fore
                 streamer_highlight = Fore.YELLOW
                 
                 streamer_gain = (
-                    f"{streamer_highlight}{self.streamers[streamer_index]}{Fore.RESET}, Total Points Gained: {_millify(gained)}"
+                    f"{streamer_highlight}{streamer}{Fore.RESET}, Total Points Gained: {_millify(gained)}"
                     if Settings.logger.less
-                    else f"{streamer_highlight}{repr(self.streamers[streamer_index])}{Fore.RESET}, Total Points Gained (after farming - before farming): {_millify(gained)}"
+                    else f"{streamer_highlight}{repr(streamer)}{Fore.RESET}, Total Points Gained (after farming - before farming): {_millify(gained)}"
                 )
                 
                 indent = ' ' * 25
-                streamer_history = '\n'.join(f"{indent}{history}" for history in self.streamers[streamer_index].print_history().split('; ')) 
+                streamer_history = '\n'.join(f"{indent}{history}" for history in streamer.print_history().split('; ')) 
                 
                 logger.info(
                     f"{streamer_gain}\n{streamer_history}",
