@@ -298,7 +298,8 @@ def compute_streamer_stats(streamer_file, username=None):
         or os.path.basename(getattr(Settings, "analytics_path", "") or "")
         or db.get_any_username()
     )
-    name = os.path.basename(streamer_file).replace(".json", "").lower().strip()
+    clean_name = os.path.basename(streamer_file).replace(".json", "").strip()
+    name = clean_name.lower()
     data = db.get_streamer_data(username, name)
 
     series = data.get("series", [])
@@ -306,8 +307,8 @@ def compute_streamer_stats(streamer_file, username=None):
 
     if not series:
         return {
-            "name": streamer_file.replace(".json", ""),
-            "file": streamer_file,
+            "name": clean_name,
+            "file": os.path.basename(streamer_file),
             "points": 0,
             "last_activity": 0,
             "total_gained": 0,
@@ -346,8 +347,8 @@ def compute_streamer_stats(streamer_file, username=None):
     }
 
     return {
-        "name": streamer_file.replace(".json", ""),
-        "file": streamer_file,
+        "name": clean_name,
+        "file": os.path.basename(streamer_file),
         "points": points,
         "last_activity": last_activity,
         "first_y": first_y,
@@ -945,21 +946,30 @@ class AnalyticsServer(Thread):
         def api_streamers_details():
             files = streamers_available()
             out = []
+            cfg = load_config_file(username) or {}
+            streamers_cfg = cfg.get("streamers") if isinstance(cfg, dict) else {}
+            if not isinstance(streamers_cfg, dict):
+                streamers_cfg = {}
+            miner_streamers = (
+                getattr(self.miner, "streamers", [])
+                if self.miner and hasattr(self.miner, "streamers")
+                else []
+            )
             for f in files:
                 stats = compute_streamer_stats(f, username)
-                cfg = load_config_file(username)
-                per_stream_cfg = None
-                if cfg and "streamers" in cfg:
-                    per_stream_cfg = cfg["streamers"].get(stats["name"]) or cfg[
-                        "streamers"
-                    ].get(stats["name"].lower())
+                if not isinstance(stats, dict):
+                    continue
+                s_name = stats.get("name") or os.path.basename(f).replace(".json", "").strip()
+                stats["name"] = s_name
+                if "file" not in stats:
+                    stats["file"] = os.path.basename(f)
+                per_stream_cfg = streamers_cfg.get(s_name) or streamers_cfg.get(s_name.lower())
                 stats["config"] = per_stream_cfg
-                if self.miner and hasattr(self.miner, "streamers"):
-                    for s in self.miner.streamers:
-                        if s.username == stats["name"].lower():
-                            stats["is_online"] = s.is_online
-                            stats["channel_points_live"] = s.channel_points
-                            break
+                for s in miner_streamers:
+                    if getattr(s, "username", "").lower() == s_name.lower():
+                        stats["is_online"] = getattr(s, "is_online", False)
+                        stats["channel_points_live"] = getattr(s, "channel_points", 0)
+                        break
                 out.append(stats)
             out.sort(key=lambda x: x.get("points", 0), reverse=True)
             return Response(json.dumps(out), status=200, mimetype="application/json")
