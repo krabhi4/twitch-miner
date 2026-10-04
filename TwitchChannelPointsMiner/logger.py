@@ -297,7 +297,7 @@ def configure_loggers(username, settings):
         init(autoreset=True)
 
     # Queue handler that will handle the logger queue
-    logger_queue = queue.Queue(-1)
+    logger_queue = queue.SimpleQueue()
     queue_handler = QueueHandler(logger_queue)
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)

@@ -27,6 +27,12 @@ from TwitchChannelPointsMiner.constants import CLIENT_ID, USER_AGENTS, GQLOperat
 
 logger = logging.getLogger(__name__)
 
+
+class SafeUnpickler(pickle.Unpickler):
+    def find_class(self, module, name):
+        raise pickle.UnpicklingError(f"Forbidden global {module}.{name}")
+
+
 """def interceptor(request) -> str:
     if (
         request.method == 'POST'
@@ -111,11 +117,14 @@ class TwitchLogin(object):
             #     "verification_uri": "https://www.twitch.tv/activate"
             # }
 
-            if login_response.status_code != 200:
+            if login_response is None or login_response.status_code != 200:
                 logger.error("TV login response is not 200. Try again")
                 break
 
             login_response_json = login_response.json()
+            if "user_code" not in login_response_json:
+                logger.error(f"Unexpected TV login response: {login_response_json}")
+                break
 
             if "user_code" in login_response_json:
                 user_code: str = login_response_json["user_code"]
@@ -138,7 +147,7 @@ class TwitchLogin(object):
                 # twofa = input("2FA token: ")
                 # webbrowser.open_new_tab("https://www.twitch.tv/activate")
 
-                post_data = {
+                token_data = {
                     "client_id": CLIENT_ID,
                     "device_code": device_code,
                     "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
@@ -148,7 +157,7 @@ class TwitchLogin(object):
                     # sleep first, not like the user is gonna enter the code *that* fast
                     sleep(interval)
                     login_response = self.send_oauth_request(
-                        "https://id.twitch.tv/oauth2/token", post_data
+                        "https://id.twitch.tv/oauth2/token", token_data
                     )
                     if datetime.now(timezone.utc) >= expires_at:
                         logger.error(
@@ -157,7 +166,7 @@ class TwitchLogin(object):
                         )
                         break
                     # 200 means success, 400 means the user haven't entered the code yet
-                    if login_response.status_code != 200:
+                    if login_response is None or login_response.status_code != 200:
                         continue
                     # {
                     #     "access_token": "40 chars [A-Za-z0-9]",
@@ -210,23 +219,28 @@ class TwitchLogin(object):
             'Content-Type': 'application/json; charset=UTF-8',
             'Host': 'passport.twitch.tv'
         },)"""
-        response = self.session.post(
-            url,
-            data=json_data,
-            headers={
-                "Accept": "application/json",
-                "Accept-Encoding": "gzip",
-                "Accept-Language": "en-US",
-                "Cache-Control": "no-cache",
-                "Client-Id": CLIENT_ID,
-                "Host": "id.twitch.tv",
-                "Origin": "https://android.tv.twitch.tv",
-                "Pragma": "no-cache",
-                "Referer": "https://android.tv.twitch.tv/",
-                "User-Agent": USER_AGENTS["Android"]["TV"],
-                "X-Device-Id": self.device_id,
-            },
-        )
+        try:
+            response = self.session.post(
+                url,
+                data=json_data,
+                headers={
+                    "Accept": "application/json",
+                    "Accept-Encoding": "gzip",
+                    "Accept-Language": "en-US",
+                    "Cache-Control": "no-cache",
+                    "Client-Id": CLIENT_ID,
+                    "Host": "id.twitch.tv",
+                    "Origin": "https://android.tv.twitch.tv",
+                    "Pragma": "no-cache",
+                    "Referer": "https://android.tv.twitch.tv/",
+                    "User-Agent": USER_AGENTS["Android"]["TV"],
+                    "X-Device-Id": self.device_id,
+                },
+                timeout=20,
+            )
+        except requests.exceptions.RequestException as e:
+            logger.error(f"TV login request failed: {e}")
+            return None
         return response
 
     def login_flow_backup(self, password=None):
@@ -343,8 +357,10 @@ class TwitchLogin(object):
         # print(f"cookies_dict2pickle: {cookies_dict}")
         for cookie_name, value in cookies_dict.items():
             self.cookies.append({"name": cookie_name, "value": value})
-        with open(cookies_file, "wb") as f:
+        fd = os.open(cookies_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "wb") as f:
             pickle.dump(self.cookies, f)
+        os.chmod(cookies_file, 0o600)
 
     def get_cookie_value(self, key):
         for cookie in self.cookies:
@@ -356,7 +372,7 @@ class TwitchLogin(object):
     def load_cookies(self, cookies_file):
         if os.path.isfile(cookies_file):
             with open(cookies_file, "rb") as f:
-                self.cookies = pickle.load(f)
+                self.cookies = SafeUnpickler(f).load()
         else:
             raise WrongCookiesException("There must be a cookies file!")
 
@@ -376,7 +392,10 @@ class TwitchLogin(object):
     def __set_user_id(self):
         json_data = copy.deepcopy(GQLOperations.GetIDFromLogin)
         json_data["variables"]["login"] = self.username
-        response = self.session.post(GQLOperations.url, json=json_data)
+        try:
+            response = self.session.post(GQLOperations.url, json=json_data, timeout=20)
+        except requests.exceptions.RequestException:
+            return False
 
         if response.status_code == 200:
             try:

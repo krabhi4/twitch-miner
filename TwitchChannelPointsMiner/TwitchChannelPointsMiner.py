@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import copy
 import logging
 import os
 import random
@@ -24,7 +25,7 @@ from TwitchChannelPointsMiner.classes.WebSocketsPool import WebSocketsPool
 from TwitchChannelPointsMiner.logger import LoggerSettings, configure_loggers
 from TwitchChannelPointsMiner.utils import (
     _millify,
-    apply_settings_dict_to_streamer,
+    apply_streamer_settings_dict,
     at_least_one_value_in_settings_is,
     check_versions,
     get_user_agent,
@@ -43,12 +44,14 @@ from TwitchChannelPointsMiner.utils import (
 #   - irc.client - [_handle_message]
 logging.getLogger("chardet.charsetprober").setLevel(logging.ERROR)
 logging.getLogger("requests").setLevel(logging.ERROR)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("werkzeug").setLevel(logging.ERROR)
 logging.getLogger("irc.client").setLevel(logging.ERROR)
 logging.getLogger("seleniumwire").setLevel(logging.ERROR)
 logging.getLogger("websocket").setLevel(logging.ERROR)
 
 logger = logging.getLogger(__name__)
+SYNC_THREAD_LOCK = threading.Lock()
 
 
 class TwitchChannelPointsMiner:
@@ -70,6 +73,7 @@ class TwitchChannelPointsMiner:
         "running",
         "start_datetime",
         "original_streamers",
+        "base_settings",
         "logs_file",
         "queue_listener",
     ]
@@ -165,6 +169,7 @@ class TwitchChannelPointsMiner:
         self.running = False
         self.start_datetime = None
         self.original_streamers = {}
+        self.base_settings = {}
 
         self.logs_file, self.queue_listener = configure_loggers(
             self.username, logger_settings
@@ -187,7 +192,7 @@ class TwitchChannelPointsMiner:
             logger.info(f"The latest version on GitHub is {github_version}")
 
         for sign in [signal.SIGINT, signal.SIGTERM]:
-            signal.signal(sign, self.end)
+            signal.signal(sign, self.interrupt)
 
     def analytics(
         self,
@@ -224,12 +229,26 @@ class TwitchChannelPointsMiner:
     ):
         streamers = [] if streamers is None else streamers
         blacklist = [] if blacklist is None else blacklist
-        self.run(
-            streamers=streamers,
-            blacklist=blacklist,
-            followers=followers,
-            followers_order=followers_order,
-        )
+        try:
+            self.run(
+                streamers=streamers,
+                blacklist=blacklist,
+                followers=followers,
+                followers_order=followers_order,
+            )
+        except KeyboardInterrupt:
+            self.end(0, None)
+        except BaseException:
+            if getattr(self, "running", False):
+                self.running = self.twitch.running = False
+                if getattr(self, "ws_pool", None) is not None:
+                    self.ws_pool.end()
+                if self.queue_listener:
+                    self.queue_listener.stop()
+            raise
+
+    def interrupt(self, signum, frame):
+        raise KeyboardInterrupt
 
     def run(
         self,
@@ -283,45 +302,51 @@ class TwitchChannelPointsMiner:
                         streamers_dict[username] = username.lower().strip()
 
             saved_streamers_cfg = {}
-            if not is_docker_run_py():
-                try:
-                    from TwitchChannelPointsMiner.classes.AnalyticsServer import (
-                        load_config_file,
-                    )
-                    from TwitchChannelPointsMiner.utils import (
-                        apply_streamer_settings_dict,
-                        parse_priority_list,
-                    )
+            try:
+                from TwitchChannelPointsMiner.classes.AnalyticsServer import (
+                    load_config_file,
+                )
+                from TwitchChannelPointsMiner.utils import (
+                    apply_streamer_settings_dict,
+                    parse_priority_list,
+                )
 
-                    saved_cfg = load_config_file(self.username)
-                    if saved_cfg:
-                        if isinstance(saved_cfg.get("global"), dict):
-                            apply_streamer_settings_dict(
-                                Settings.streamer_settings, saved_cfg["global"]
-                            )
-                        if isinstance(saved_cfg.get("priority"), list):
-                            p_list = parse_priority_list(saved_cfg["priority"])
-                            if p_list:
-                                self.priority = p_list
-                        if isinstance(saved_cfg.get("streamers"), dict):
-                            saved_streamers_cfg = saved_cfg["streamers"]
-                            for saved_name in saved_streamers_cfg.keys():
-                                saved_name = saved_name.lower().strip()
-                                if (
-                                    saved_name
-                                    and saved_name not in streamers_dict
-                                    and saved_name not in blacklist
-                                ):
-                                    streamers_name.append(saved_name)
-                                    streamers_dict[saved_name] = saved_name
-                except Exception as e:
-                    logger.error(f"Failed to load streamers from config: {e}")
+                saved_cfg = load_config_file(self.username)
+                if saved_cfg:
+                    if isinstance(saved_cfg.get("global"), dict):
+                        apply_streamer_settings_dict(
+                            Settings.streamer_settings, saved_cfg["global"]
+                        )
+                    if isinstance(saved_cfg.get("priority"), list):
+                        p_list = parse_priority_list(saved_cfg["priority"])
+                        if p_list:
+                            self.priority = p_list
+                    if isinstance(saved_cfg.get("streamers"), dict):
+                        saved_streamers_cfg = {
+                            k.lower().strip(): v
+                            for k, v in saved_cfg["streamers"].items()
+                        }
+                        for saved_name in saved_streamers_cfg.keys():
+                            saved_name = saved_name.lower().strip()
+                            if (
+                                saved_name
+                                and not is_docker_run_py()
+                                and saved_name not in streamers_dict
+                                and saved_name not in blacklist
+                            ):
+                                streamers_name.append(saved_name)
+                                streamers_dict[saved_name] = saved_name
+            except Exception as e:
+                logger.error(f"Failed to load streamers from config: {e}")
 
             logger.info(
                 f"Loading data for {len(streamers_name)} streamers. Please wait...",
                 extra={"emoji": ":nerd_face:"},
             )
             for username in streamers_name:
+                with self.streamers_lock:
+                    if any(s.username == username for s in self.streamers):
+                        continue
                 time.sleep(random.uniform(0.3, 0.7))
                 try:
                     streamer = (
@@ -331,24 +356,23 @@ class TwitchChannelPointsMiner:
                     )
                     streamer.miner_username = self.username
                     streamer.channel_id = self.twitch.get_channel_id(username)
-                    streamer.settings = set_default_settings(
-                        streamer.settings, Settings.streamer_settings
+                    self.base_settings[streamer.username] = copy.deepcopy(
+                        streamer.settings
                     )
-                    streamer.settings.bet = set_default_settings(
-                        streamer.settings.bet, Settings.streamer_settings.bet
+                    self.resolve_settings(
+                        streamer,
+                        saved_streamers_cfg.get(streamer.username.lower()),
                     )
-                    s_data = saved_streamers_cfg.get(
-                        streamer.username
-                    ) or saved_streamers_cfg.get(streamer.username.lower())
-                    if s_data and isinstance(s_data, dict):
-                        apply_settings_dict_to_streamer(streamer, s_data)
                     if streamer.settings.chat != ChatPresence.NEVER:
                         streamer.irc_chat = ThreadChat(
                             self.username,
                             self.twitch.twitch_login.get_auth_token(),
                             streamer.username,
                         )
-                    self.streamers.append(streamer)
+                    with self.streamers_lock:
+                        if any(s.username == streamer.username for s in self.streamers):
+                            continue
+                        self.streamers.append(streamer)
                 except StreamerDoesNotExistException:
                     logger.info(
                         f"Streamer {username} does not exist",
@@ -362,7 +386,10 @@ class TwitchChannelPointsMiner:
             for streamer in self.streamers:
                 time.sleep(random.uniform(0.3, 0.7))
                 try:
-                    self.twitch.load_channel_points_context(streamer)
+                    if self.twitch.load_channel_points_context(streamer):
+                        self.original_streamers.setdefault(
+                            streamer.username, streamer.channel_points
+                        )
                     self.twitch.check_streamer_online(streamer)
                     # self.twitch.viewer_is_mod(streamer)
                 except StreamerDoesNotExistException:
@@ -370,16 +397,11 @@ class TwitchChannelPointsMiner:
                         f"Streamer {streamer.username} does not exist",
                         extra={"emoji": ":cry:"},
                     )
-
-            self.original_streamers = {
-                streamer.username: streamer.channel_points
-                for streamer in self.streamers
-            }
-
-            # If we have at least one streamer with settings = make_predictions True
-            make_predictions = at_least_one_value_in_settings_is(
-                self.streamers, "make_predictions", True
-            )
+                except Exception:
+                    logger.error(
+                        f"Failed to load initial data for {streamer.username}",
+                        exc_info=True,
+                    )
 
             # If we have at least one streamer with settings = claim_drops True
             # Spawn a thread for sync inventory and dashboard
@@ -387,12 +409,7 @@ class TwitchChannelPointsMiner:
                 at_least_one_value_in_settings_is(self.streamers, "claim_drops", True)
                 is True
             ):
-                self.sync_campaigns_thread = threading.Thread(
-                    target=self.twitch.sync_campaigns,
-                    args=(self.streamers,),
-                )
-                self.sync_campaigns_thread.name = "Sync campaigns/inventory"
-                self.sync_campaigns_thread.start()
+                self.ensure_sync_thread()
                 time.sleep(30)
 
             self.minute_watcher_thread = threading.Thread(
@@ -425,36 +442,15 @@ class TwitchChannelPointsMiner:
             )
 
             # Going to subscribe to predictions-user-v1. Get update when we place a new prediction (confirm)
-            if make_predictions is True:
-                self.ws_pool.submit(
-                    PubsubTopic(
-                        "predictions-user-v1",
-                        user_id=user_id,
-                    )
+            self.ws_pool.submit(
+                PubsubTopic(
+                    "predictions-user-v1",
+                    user_id=user_id,
                 )
+            )
 
             for streamer in self.streamers:
-                self.ws_pool.submit(
-                    PubsubTopic("video-playback-by-id", streamer=streamer)
-                )
-
-                if streamer.settings.follow_raid is True:
-                    self.ws_pool.submit(PubsubTopic("raid", streamer=streamer))
-
-                if streamer.settings.make_predictions is True:
-                    self.ws_pool.submit(
-                        PubsubTopic("predictions-channel-v1", streamer=streamer)
-                    )
-
-                if streamer.settings.claim_moments is True:
-                    self.ws_pool.submit(
-                        PubsubTopic("community-moments-channel-v1", streamer=streamer)
-                    )
-
-                if streamer.settings.community_goals is True:
-                    self.ws_pool.submit(
-                        PubsubTopic("community-points-channel-v1", streamer=streamer)
-                    )
+                self.subscribe_streamer_topics(streamer)
 
             refresh_context = time.time()
             while self.running:
@@ -479,7 +475,10 @@ class TwitchChannelPointsMiner:
                     for streamer in self.streamers[:]:
                         if streamer.is_online:
                             try:
-                                self.twitch.load_channel_points_context(streamer)
+                                if self.twitch.load_channel_points_context(streamer):
+                                    self.original_streamers.setdefault(
+                                        streamer.username, streamer.channel_points
+                                    )
                             except StreamerDoesNotExistException:
                                 logger.info(
                                     f"Streamer {streamer.username} does not exist, removing from streamers list",
@@ -488,6 +487,68 @@ class TwitchChannelPointsMiner:
                                 with self.streamers_lock:
                                     if streamer in self.streamers:
                                         self.streamers.remove(streamer)
+                            except Exception:
+                                logger.error(
+                                    f"Failed to refresh channel points for {streamer.username}",
+                                    exc_info=True,
+                                )
+
+    def subscribe_streamer_topics(self, streamer):
+        if getattr(self, "ws_pool", None) is None:
+            return
+        for enabled, name in (
+            (True, "video-playback-by-id"),
+            (streamer.settings.follow_raid, "raid"),
+            (streamer.settings.make_predictions, "predictions-channel-v1"),
+            (streamer.settings.claim_moments, "community-moments-channel-v1"),
+            (streamer.settings.community_goals, "community-points-channel-v1"),
+        ):
+            topic = PubsubTopic(name, streamer=streamer)
+            if enabled is True and not any(
+                topic in ws.topics for ws in list(self.ws_pool.ws)
+            ):
+                self.ws_pool.submit(topic)
+
+    def resolve_settings(self, streamer, override=None):
+        settings = set_default_settings(
+            copy.deepcopy(self.base_settings.get(streamer.username)),
+            Settings.streamer_settings,
+        )
+        settings.bet = set_default_settings(
+            settings.bet, Settings.streamer_settings.bet
+        )
+        if isinstance(override, dict):
+            apply_streamer_settings_dict(settings, override)
+        streamer.settings = settings
+
+    def ensure_sync_thread(self):
+        with SYNC_THREAD_LOCK:
+            thread = getattr(self, "sync_campaigns_thread", None)
+            if thread is None or not thread.is_alive():
+                self.sync_campaigns_thread = threading.Thread(
+                    target=self.twitch.sync_campaigns,
+                    args=(self.streamers,),
+                    name="Sync campaigns/inventory",
+                )
+                self.sync_campaigns_thread.start()
+
+    def apply_live_settings(self, streamer):
+        self.subscribe_streamer_topics(streamer)
+        if (
+            streamer.settings.claim_drops is True
+            and getattr(self, "ws_pool", None) is not None
+        ):
+            self.ensure_sync_thread()
+        if streamer.settings.chat == ChatPresence.NEVER:
+            streamer.leave_chat()
+            return
+        if streamer.irc_chat is None:
+            streamer.irc_chat = ThreadChat(
+                self.username,
+                self.twitch.twitch_login.get_auth_token(),
+                streamer.username,
+            )
+        streamer.toggle_chat()
 
     def end(self, signum, frame):
         if not self.running:
@@ -601,7 +662,8 @@ class TwitchChannelPointsMiner:
             for s in self.streamers:
                 if s.username.lower() == username:
                     if settings:
-                        s.settings = settings
+                        self.base_settings[s.username] = copy.deepcopy(settings)
+                        self.resolve_settings(s)
                     return s
 
             streamer = Streamer(username, settings=settings)
@@ -609,12 +671,8 @@ class TwitchChannelPointsMiner:
             if hasattr(self, "twitch") and self.twitch is not None:
                 streamer.channel_id = self.twitch.get_channel_id(username)
 
-            streamer.settings = set_default_settings(
-                streamer.settings, Settings.streamer_settings
-            )
-            streamer.settings.bet = set_default_settings(
-                streamer.settings.bet, Settings.streamer_settings.bet
-            )
+            self.base_settings[streamer.username] = copy.deepcopy(streamer.settings)
+            self.resolve_settings(streamer)
 
             if (
                 hasattr(self, "twitch")
@@ -636,50 +694,15 @@ class TwitchChannelPointsMiner:
             and self.twitch is not None
         ):
             try:
-                self.twitch.load_channel_points_context(streamer)
+                if self.twitch.load_channel_points_context(streamer):
+                    self.original_streamers.setdefault(
+                        streamer.username, streamer.channel_points
+                    )
                 self.twitch.check_streamer_online(streamer)
             except Exception as e:
                 logger.error(f"Failed to load points or status for {username}: {e}")
 
-            self.original_streamers[streamer.username] = streamer.channel_points
-            try:
-                streamer.update_channel_points()
-            except Exception:
-                pass
-
-            if hasattr(self, "ws_pool") and self.ws_pool is not None:
-                self.ws_pool.submit(
-                    PubsubTopic("video-playback-by-id", streamer=streamer)
-                )
-                if streamer.settings.follow_raid is True:
-                    self.ws_pool.submit(PubsubTopic("raid", streamer=streamer))
-                if streamer.settings.make_predictions is True:
-                    self.ws_pool.submit(
-                        PubsubTopic("predictions-channel-v1", streamer=streamer)
-                    )
-                if streamer.settings.claim_moments is True:
-                    self.ws_pool.submit(
-                        PubsubTopic("community-moments-channel-v1", streamer=streamer)
-                    )
-                if streamer.settings.community_goals is True:
-                    self.ws_pool.submit(
-                        PubsubTopic("community-points-channel-v1", streamer=streamer)
-                    )
-
-            if streamer.settings.claim_drops is True:
-                if (
-                    not hasattr(self, "sync_campaigns_thread")
-                    or self.sync_campaigns_thread is None
-                    or not self.sync_campaigns_thread.is_alive()
-                ):
-                    self.sync_campaigns_thread = threading.Thread(
-                        target=self.twitch.sync_campaigns,
-                        args=(self.streamers,),
-                    )
-                    self.sync_campaigns_thread.name = "Sync campaigns/inventory"
-                    self.sync_campaigns_thread.start()
-
-            streamer.toggle_chat()
+            self.apply_live_settings(streamer)
 
         logger.info(
             f"Streamer '{username}' added to miner",

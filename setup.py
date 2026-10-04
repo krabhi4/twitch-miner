@@ -30,7 +30,6 @@ setuptools.setup(
     install_requires=[
         "requests",
         "websocket-client",
-        "pillow",
         "python-dateutil",
         "emoji",
         "millify",
@@ -39,9 +38,8 @@ setuptools.setup(
         "irc",
         "pandas",
         "pytz",
-        "validators",
         "sqlalchemy",
-        "psycopg2-binary",
+        "psycopg[binary]",
     ],
     extras_require={
         "dev": ["pre-commit"],

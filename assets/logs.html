@@ -6,7 +6,7 @@
     <title>Live Logs - Twitch Miner</title>
     <link rel="icon" type="image/png" sizes="32x32" href="https://static.twitchcdn.net/assets/favicon-32-e29e246c157142c94346.png">
     <link rel="icon" type="image/png" sizes="16x16" href="https://static.twitchcdn.net/assets/favicon-16-52e571ffea063af7a7f4.png">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css" rel="stylesheet" integrity="sha384-qrALq7+6jBOZIQsNnT6xGkMDru64qD6uTlDra39xrt2SoXl4pO3FX6Roz/RpR/BS" crossorigin="anonymous" />
     <style>
         :root {
             --bg: #0e1017;
@@ -239,20 +239,23 @@
             fetch('/log?lastIndex=' + offset, { signal: abortController.signal })
                 .then(res => {
                     if (!res.ok) {
+                        if (res.status === 404 && terminal.textContent === 'Connecting to log stream...') {
+                            terminal.textContent = 'Enable save=True in logger_settings to view live log stream.';
+                        }
                         throw new Error('HTTP ' + res.status);
                     }
                     const off = res.headers.get('X-Log-Offset');
+                    return res.text().then(text => ({ text, off }));
+                })
+                .then(({ text, off }) => {
                     if (off !== null) {
                         const parsed = parseInt(off, 10);
                         if (Number.isInteger(parsed) && parsed >= 0) {
                             offset = parsed;
                         }
                     }
-                    return res.text();
-                })
-                .then(text => {
                     if (text) {
-                        if (terminal.textContent === 'Connecting to log stream...') {
+                        if (terminal.textContent === 'Connecting to log stream...' || terminal.textContent.startsWith('Enable save=True')) {
                             terminal.textContent = '';
                         }
                         terminal.textContent += text;

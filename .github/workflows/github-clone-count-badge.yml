@@ -73,7 +73,8 @@ jobs:
       - name: update clone.json
         if: steps.check_secret.outputs.skip != 'true'
         run: |
-          curl https://raw.githubusercontent.com/MShawon/github-clone-count-badge/master/main.py > main.py
+          curl -fsSL https://raw.githubusercontent.com/MShawon/github-clone-count-badge/1ee27f9cbddc9d216ccbde2758ada05cbe1e4cfa/main.py > main.py
+          echo "23cb8358641d8b18b7e5e9ad01d082b3ab084f857361d032ee19eabd5f7e6ef0  main.py" | sha256sum -c -
           python3 main.py
 
       - name: Update gist with latest count

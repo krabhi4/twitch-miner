@@ -21,6 +21,7 @@ class Discord(object):
                         "content": dedent(message),
                         "username": "Twitch Channel Points Miner",
                         "avatar_url": "https://i.imgur.com/X9fEkhT.png",
+                        "allowed_mentions": {"parse": []},
                     },
                     timeout=10,
                 )

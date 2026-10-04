@@ -3,7 +3,7 @@ import json
 import logging
 import time
 
-from websocket import WebSocketApp, WebSocketConnectionClosedException
+from websocket import WebSocketApp, WebSocketException
 
 from TwitchChannelPointsMiner.utils import create_nonce
 
@@ -72,8 +72,8 @@ class TwitchWebSocket(WebSocketApp):
 
         try:
             super().send(request_str)
-        except WebSocketConnectionClosedException:
-            logger.debug(f"#{self.index} - WebSocket closed while sending")
+        except (WebSocketException, OSError) as e:
+            logger.debug(f"#{self.index} - WebSocket error while sending: {e}")
             self.is_closed = True
 
     def elapsed_last_pong(self):

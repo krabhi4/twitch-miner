@@ -1,4 +1,4 @@
-FROM python:3.14-slim-bookworm AS builder
+FROM python:3.14-slim-trixie AS builder
 
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
@@ -16,14 +16,13 @@ RUN apt-get update \
     libffi-dev \
     libssl-dev \
     zlib1g-dev \
-    libjpeg-dev \
     libblas-dev \
     liblapack-dev \
     libpq-dev \
   && pip install --upgrade pip \
   && pip wheel --no-cache-dir --wheel-dir=/build/wheels -r requirements.txt
 
-FROM python:3.14-slim-bookworm
+FROM python:3.14-slim-trixie
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -36,7 +35,6 @@ WORKDIR /usr/src/app
 
 RUN apt-get update \
   && DEBIAN_FRONTEND=noninteractive apt-get install -qq -y --no-install-recommends \
-    libjpeg62-turbo \
     zlib1g \
     libpq5 \
   && apt-get clean \

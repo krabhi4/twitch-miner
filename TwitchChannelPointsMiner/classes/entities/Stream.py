@@ -106,6 +106,6 @@ class Stream(object):
     def update_minute_watched(self):
         if self.__minute_watched_timestamp != 0:
             self.minute_watched += (
-                max(0.0, time.time() - self.__minute_watched_timestamp) / 60
+                min(max(0.0, time.time() - self.__minute_watched_timestamp), 60) / 60
             )
         self.__minute_watched_timestamp = time.time()

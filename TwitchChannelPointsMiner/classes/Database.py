@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import threading
 import time
 from pathlib import Path
 
@@ -20,7 +21,6 @@ from sqlalchemy import (
     select,
     update,
 )
-from sqlalchemy.engine import Engine
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,6 @@ streamer_annotations_table = Table(
 )
 
 
-@event.listens_for(Engine, "connect")
 def _set_sqlite_pragma(dbapi_connection, connection_record):
     try:
         cursor = dbapi_connection.cursor()
@@ -90,25 +89,36 @@ class DatabaseManager:
         connect_args = {}
         if self.url.startswith("sqlite:"):
             connect_args["check_same_thread"] = False
+        elif self.url.startswith("postgresql"):
+            connect_args["connect_timeout"] = 5
         self.engine = create_engine(
             self.url,
             connect_args=connect_args,
             pool_pre_ping=True,
         )
+        if self.url.startswith("sqlite:"):
+            event.listen(self.engine, "connect", _set_sqlite_pragma)
+        self.config_lock = threading.Lock()
         metadata.create_all(self.engine)
 
     def _resolve_db_url(self, db_url=None, db_type=None, db_path=None):
         url = db_url or os.environ.get("DATABASE_URL") or os.environ.get("DB_URL")
         dtype = (
-            db_type
-            or os.environ.get("DATABASE_TYPE")
-            or os.environ.get("DB_TYPE")
-            or ""
-        ).lower().strip()
+            (
+                db_type
+                or os.environ.get("DATABASE_TYPE")
+                or os.environ.get("DB_TYPE")
+                or ""
+            )
+            .lower()
+            .strip()
+        )
 
         if url:
-            if url.startswith("postgres://"):
-                url = "postgresql://" + url[len("postgres://") :]
+            if url.startswith(
+                ("postgres://", "postgresql://", "postgresql+psycopg2://")
+            ):
+                url = "postgresql+psycopg://" + url.split("://", 1)[1]
             return url
 
         if dtype in ("postgresql", "postgres"):
@@ -117,9 +127,7 @@ class DatabaseManager:
             )
 
         path = (
-            db_path
-            or os.environ.get("DATABASE_PATH")
-            or os.environ.get("SQLITE_PATH")
+            db_path or os.environ.get("DATABASE_PATH") or os.environ.get("SQLITE_PATH")
         )
         if not path:
             analytics_base = Path("analytics").resolve()
@@ -177,6 +185,9 @@ class DatabaseManager:
                 except Exception as e:
                     logger.error(f"Failed to read {f} for migration: {e}")
                     continue
+                if not isinstance(streamer_data, dict):
+                    logger.error(f"Skipping {f} migration: unexpected JSON structure")
+                    continue
 
                 target_user = folder_user or username
                 if not target_user:
@@ -185,40 +196,42 @@ class DatabaseManager:
                 series_list = streamer_data.get("series", [])
                 annotations_list = streamer_data.get("annotations", [])
 
-                if series_list:
-                    batch = []
-                    for s in series_list:
-                        batch.append(
-                            {
-                                "username": target_user,
-                                "streamer": streamer_name,
-                                "x": int(s.get("x", 0)),
-                                "y": int(s.get("y", 0)),
-                                "z": str(s.get("z", "Watch")),
-                            }
-                        )
-                    self.bulk_insert_series(batch)
-
-                if annotations_list:
-                    batch = []
-                    for a in annotations_list:
-                        border_color = str(a.get("borderColor", ""))
-                        text = str(
-                            a.get("label", {}).get("text", "")
-                            if isinstance(a.get("label"), dict)
-                            else ""
-                        )
-                        batch.append(
-                            {
-                                "username": target_user,
-                                "streamer": streamer_name,
-                                "x": int(a.get("x", 0)),
-                                "border_color": border_color,
-                                "text": text,
-                                "data": json.dumps(a),
-                            }
-                        )
-                    self.bulk_insert_annotations(batch)
+                try:
+                    series_batch = [
+                        {
+                            "username": target_user,
+                            "streamer": streamer_name,
+                            "x": int(s.get("x", 0)),
+                            "y": int(s.get("y", 0)),
+                            "z": str(s.get("z", "Watch")),
+                        }
+                        for s in series_list
+                    ]
+                    annotations_batch = [
+                        {
+                            "username": target_user,
+                            "streamer": streamer_name,
+                            "x": int(a.get("x", 0)),
+                            "border_color": str(a.get("borderColor", "")),
+                            "text": str(
+                                a.get("label", {}).get("text", "")
+                                if isinstance(a.get("label"), dict)
+                                else ""
+                            ),
+                            "data": json.dumps(a),
+                        }
+                        for a in annotations_list
+                    ]
+                    with self.engine.begin() as conn:
+                        for table, rows in (
+                            (streamer_series_table, series_batch),
+                            (streamer_annotations_table, annotations_batch),
+                        ):
+                            for i in range(0, len(rows), 1000):
+                                conn.execute(insert(table), rows[i : i + 1000])
+                except Exception as e:
+                    logger.error(f"Failed to migrate {f}: {e}")
+                    continue
 
                 f.unlink(missing_ok=True)
                 (d / f"{f.name}.temp").unlink(missing_ok=True)
@@ -226,23 +239,6 @@ class DatabaseManager:
                 logger.info(
                     f"Migrated {len(series_list)} points and {len(annotations_list)} annotations "
                     f"for streamer '{streamer_name}' ({target_user}) to database and deleted {f.name}"
-                )
-
-    def bulk_insert_series(self, rows, chunk_size=1000):
-        if not rows:
-            return
-        with self.engine.begin() as conn:
-            for i in range(0, len(rows), chunk_size):
-                conn.execute(insert(streamer_series_table), rows[i : i + chunk_size])
-
-    def bulk_insert_annotations(self, rows, chunk_size=1000):
-        if not rows:
-            return
-        with self.engine.begin() as conn:
-            for i in range(0, len(rows), chunk_size):
-                conn.execute(
-                    insert(streamer_annotations_table),
-                    rows[i : i + chunk_size],
                 )
 
     def save_series(self, username, streamer, x, y, z):
@@ -291,7 +287,7 @@ class DatabaseManager:
             return
         data_str = json.dumps(data, indent=4)
         now = int(time.time())
-        with self.engine.begin() as conn:
+        with self.config_lock, self.engine.begin() as conn:
             check_stmt = select(miner_config_table.c.username).where(
                 miner_config_table.c.username == username
             )
@@ -459,4 +455,3 @@ def get_database(
 def reset_database():
     global _global_db_instance
     _global_db_instance = None
-

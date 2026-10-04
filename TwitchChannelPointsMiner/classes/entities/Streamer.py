@@ -238,6 +238,32 @@ class Streamer(object):
                 },
                 "x": now_ms,
             }
+            try:
+                from TwitchChannelPointsMiner.classes.Database import get_database
+
+                db = get_database()
+                user = getattr(self, "miner_username", None) or os.path.basename(
+                    getattr(Settings, "analytics_path", "") or ""
+                )
+                if not user:
+                    user = db.get_any_username() or "default"
+                db.save_annotation(
+                    username=user,
+                    streamer=self.username.lower().strip(),
+                    x=now_ms,
+                    border_color=primary_color,
+                    text=event_text,
+                    data=data,
+                )
+            except Exception:
+                logger.error("Analytics write failed", exc_info=True)
+
+    def persistent_series(self, event_type="Watch"):
+        if not getattr(Settings, "enable_analytics", False):
+            return
+        now = datetime.now().replace(microsecond=0)
+        now_ms = round(datetime.timestamp(now) * 1000)
+        try:
             from TwitchChannelPointsMiner.classes.Database import get_database
 
             db = get_database()
@@ -246,35 +272,15 @@ class Streamer(object):
             )
             if not user:
                 user = db.get_any_username() or "default"
-            db.save_annotation(
+            db.save_series(
                 username=user,
                 streamer=self.username.lower().strip(),
                 x=now_ms,
-                border_color=primary_color,
-                text=event_text,
-                data=data,
+                y=self.channel_points,
+                z=event_type.replace("_", " ").title() if event_type else "Watch",
             )
-
-    def persistent_series(self, event_type="Watch"):
-        if not getattr(Settings, "enable_analytics", False):
-            return
-        now = datetime.now().replace(microsecond=0)
-        now_ms = round(datetime.timestamp(now) * 1000)
-        from TwitchChannelPointsMiner.classes.Database import get_database
-
-        db = get_database()
-        user = getattr(self, "miner_username", None) or os.path.basename(
-            getattr(Settings, "analytics_path", "") or ""
-        )
-        if not user:
-            user = db.get_any_username() or "default"
-        db.save_series(
-            username=user,
-            streamer=self.username.lower().strip(),
-            x=now_ms,
-            y=self.channel_points,
-            z=event_type.replace("_", " ").title() if event_type else "Watch",
-        )
+        except Exception:
+            logger.error("Analytics write failed", exc_info=True)
 
     def leave_chat(self):
         if self.irc_chat is not None:

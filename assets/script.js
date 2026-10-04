@@ -52,6 +52,7 @@ let historySortAsc = false;
 let enumsCache = null;
 
 function escapeHtml(s){ if(s === null || s === undefined) return ''; return String(s).replace(/[&<>"']/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])); }
+function jsArg(s){ return escapeHtml(JSON.stringify(String(s))); }
 function millify(n){ if(n==null) return '-'; if(n>=1000000) return (n/1000000).toFixed(1)+'M'; if(n>=1000) return (n/1000).toFixed(1)+'k'; return String(n); }
 function formatDate(d){ const dd=new Date(d); const m=''+(dd.getMonth()+1), day=''+dd.getDate(), y=dd.getFullYear(); return [y, m.padStart(2,'0'), day.padStart(2,'0')].join('-'); }
 function formatDateTime(ts){ return new Date(ts).toLocaleString(); }
@@ -80,6 +81,7 @@ $(document).ready(function(){
         const t=$(this).data('tab');
         $('.tab-btn').removeClass('active'); $(this).addClass('active');
         $('.tab-pane').removeClass('active'); $('#tab-'+t).addClass('active');
+        if(t==='dashboard'){ if(chartDirty){ chartDirty=false; refreshChart(); } else { chart.updateOptions({}, true, false); updateAnnotations(); } }
         if(t==='history' && historyRows.length===0) loadHistory();
         if(t==='config') loadConfig();
     });
@@ -89,18 +91,19 @@ $(document).ready(function(){
 
     $('#annotations').click(()=>{ localStorage.setItem("annotations", $('#annotations').prop("checked")); updateAnnotations(); });
     $('#dark-mode').click(()=> toggleDarkMode());
-    $('#compare-mode').change(function(){ compareMode=this.checked; localStorage.setItem("compare-mode", compareMode); selectedCompare.clear(); if(compareMode && currentStreamer) selectedCompare.add(currentStreamer.replace('.json','')); updateCompareUI(); if(currentStreamer) getStreamerData(currentStreamer); });
+    $('#compare-mode').change(function(){ compareMode=this.checked; localStorage.setItem("compare-mode", compareMode); selectedCompare.clear(); if(compareMode && currentStreamer) selectedCompare.add(currentStreamer.replace('.json','')); updateCompareUI(); if(currentStreamer) changeStreamer(currentStreamer, 1); });
     $('.preset-btn').click(function(){ $('.preset-btn').removeClass('active'); $(this).addClass('active'); const d=$(this).data('days'); if(d==='all'){ $('#startDate').val(''); $('#endDate').val(formatDate(new Date())); startDate=new Date(0); endDate=new Date(); } else { const n=parseInt(d); startDate=new Date(); startDate.setDate(startDate.getDate()-n); endDate=new Date(); $('#startDate').val(formatDate(startDate)); $('#endDate').val(formatDate(endDate)); } if(currentStreamer) refreshChart(); });
     $('#startDate').change(()=>{ const v=$('#startDate').val(); if(v) startDate=new Date(v); if(currentStreamer) refreshChart(); });
     $('#endDate').change(()=>{ const v=$('#endDate').val(); if(v) endDate=new Date(v); if(currentStreamer) refreshChart(); });
     $('#agg-select').change(()=>{ if(currentStreamer) refreshChart(); });
     $('#btn-export').click(exportCSV);
-    $('#btn-reset-zoom').click(()=> chart.resetSeries(false,true));
+    $('#btn-reset-zoom').click(()=> chart.resetSeries(true,true));
     $('#streamer-search').on('input', renderStreamers);
     $('#btn-history-refresh').click(loadHistory);
-    $('#history-streamer-filter, #history-type-filter').change(applyHistoryFilters);
+    $('#history-streamer-filter').change(loadHistory);
+    $('#history-type-filter').change(applyHistoryFilters);
     $('#history-search').on('input', applyHistoryFilters);
-    $('.history-table th[data-sort]').click(function(){ const f=$(this).data('sort'); if(historySortField===f) historySortAsc=!historySortAsc; else {historySortField=f; historySortAsc=true;} renderHistoryTable(); });
+    $('.history-table th[data-sort]').click(function(){ const f=$(this).data('sort'); if(historySortField===f) historySortAsc=!historySortAsc; else {historySortField=f; historySortAsc=true;} applyHistoryFilters(); });
     $('#btn-save-global').click(saveGlobalConfig);
     $('#btn-add-streamer').click(addStreamer);
     $('#new-streamer-name').on('keypress', function(e){
@@ -131,9 +134,10 @@ $(document).ready(function(){
     });
 
     updateAnnotations();
+    if(refresh > 0) setInterval(()=>{ loadOverview(); refreshChart(); }, refresh);
 });
 
-function refreshChart(){ if(compareMode && selectedCompare.size>1) loadCompareChart(); else if(currentStreamer) getStreamerData(currentStreamer); }
+function refreshChart(){ if(compareMode && selectedCompare.size) loadCompareChart(); else if(currentStreamer) getStreamerData(currentStreamer); }
 
 function loadOverview(){
     $.getJSON('/api/overview', function(data){
@@ -147,21 +151,46 @@ function loadOverview(){
     });
 }
 
+function reloadAfterPrune(){
+    if(!currentStreamer && !selectedCompare.size){ chartGen++; options.title.text='Channel points (UTC)'; chart.updateOptions({ title: options.title }); chart.updateSeries([]); clearAnnotations(); annotations=[]; $('#chart-title').text('Select a streamer'); $('#chart-stats,#gain-breakdown').empty(); return; }
+    refreshChart();
+}
+
+function rebuildHistoryFilter(names){
+    const sel=$('#history-streamer-filter'); const prev=sel.val(); sel.find('option:not(:first)').remove();
+    names.forEach(n=> sel.append(`<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`));
+    sel.val(prev); if(sel.val()!==prev){ sel.val(''); loadHistory(); }
+}
+
+function pruneStale(){
+    const live=new Set(streamersList.map(s=>s.displayName||s.name.replace('.json','')));
+    let stale=false;
+    selectedCompare.forEach(n=>{ if(!live.has(n)){ selectedCompare.delete(n); stale=true; } });
+    if(currentStreamer && !live.has(currentStreamer.replace('.json',''))){ currentStreamer = compareMode && selectedCompare.size ? [...selectedCompare][0]+'.json' : null; stale=true; }
+    return stale;
+}
+
+let streamersGen=0;
 function getStreamers(){
+    const gen=++streamersGen;
     $.getJSON('/api/streamers/details', function(response){
+        if(gen!==streamersGen) return;
         if(!response || response.length===0){
             $.getJSON('streamers', function(simple){
+                if(gen!==streamersGen) return;
                 streamersList = simple.map(s=>({name:s.name, points:s.points, last_activity:s.last_activity, total_gained:0}));
-                sortStreamers(); renderStreamers();
+                const stale=pruneStale(); sortStreamers(); renderStreamers(); if(stale) reloadAfterPrune();
+                rebuildHistoryFilter(simple.map(s=>s.name.replace('.json','')));
             });
             return;
         }
         streamersDetails = response;
         streamersList = response.map(d=>({ name: d.file || d.name+'.json', displayName: d.name, points: d.points, last_activity: d.last_activity, total_gained: d.total_gained, is_online: d.is_online, bets: d.bets }));
+        const stale=pruneStale();
         sortStreamers();
         renderStreamers();
-        const sel=$('#history-streamer-filter'); sel.find('option:not(:first)').remove();
-        response.forEach(d=> sel.append(`<option value="${d.name}">${d.name}</option>`));
+        if(stale) reloadAfterPrune();
+        rebuildHistoryFilter(response.map(d=>d.name));
     });
 }
 
@@ -184,9 +213,7 @@ function renderStreamers(){
         const compareChecked = selectedCompare.has(name) ? 'checked' : '';
         const checkbox = compareMode ? `<input type="checkbox" class="compare-check" data-name="${escapeHtml(name)}" ${compareChecked} style="margin-right:6px">` : '';
         const wrBadge = (streamer.bets && streamer.bets.placed > 0) ? `<span class="meta" style="margin-left:auto">${streamer.bets.win_rate}% WR</span>` : '';
-        const safeFileName = escapeHtml(streamer.name).replace(/'/g, "\\'");
-        const safeDisplayName = escapeHtml(name).replace(/'/g, "\\'");
-        const li = `<li class="${activeClass}"><a onClick="handleStreamerClick('${safeFileName}', '${safeDisplayName}'); return false;">${checkbox}${display}${wrBadge}</a></li>`;
+        const li = `<li class="${activeClass}"><a onClick="handleStreamerClick(${jsArg(streamer.name)}, ${jsArg(name)}); return false;">${checkbox}${display}${wrBadge}</a></li>`;
         $("#streamers-list").append(li);
         idx++;
     });
@@ -199,7 +226,7 @@ function renderStreamers(){
     }
     $('.compare-check').change(function(e){
         e.stopPropagation();
-        const nm=$(this).data('name');
+        const nm=$(this).attr('data-name');
         if(this.checked) selectedCompare.add(nm); else selectedCompare.delete(nm);
         if(selectedCompare.size===0 && currentStreamer) selectedCompare.add(currentStreamer.replace(".json",""));
         loadCompareChart();
@@ -243,19 +270,24 @@ function changeStreamer(streamer, index){
     $("#streamers-list li").removeClass("is-active");
     currentStreamer = streamer;
     options.title.text = `${streamer.replace(".json","")}'s channel points (UTC)`;
-    chart.updateOptions(options);
+    chart.updateOptions({ title: options.title }); $('#chart-title').text(options.title.text);
     localStorage.setItem("selectedStreamer", currentStreamer);
-    getStreamerData(streamer);
+    if(compareMode && selectedCompare.size===0) selectedCompare.add(streamer.replace('.json',''));
+    refreshChart();
     updateChartStats(streamer);
     renderStreamers();
 }
 
+let chartGen=0, chartDirty=false;
 function getStreamerData(streamer){
     if(!streamer) return;
+    if(!$('#chart').is(':visible')){ chartDirty=true; return; }
+    const gen=++chartGen;
     const freq = $('#agg-select').val();
     const params = { startDate: $('#startDate').val() || formatDate(startDate), endDate: $('#endDate').val() || formatDate(endDate) };
     const url = freq && freq!=='raw' ? `./api/series/${streamer}?freq=${freq}` : `./json/${streamer}`;
     $.getJSON(url, params, function(response){
+        if(gen!==chartGen) return;
         if(response.error){ chart.updateSeries([{name: streamer.replace(".json",""), data:[]} ]); return; }
         if(compareMode && selectedCompare.size>1) return; // compare will override
         chart.updateSeries([{ name: streamer.replace(".json",""), data: response["series"] }], true);
@@ -269,17 +301,23 @@ function getStreamerData(streamer){
             $('#chart-stats').html(`<span class="stat-chip">Points: ${millify(last)}</span><span class="stat-chip">Gained: +${millify(gained)}</span><span class="stat-chip">Samples: ${series.length}</span>`);
             const zCounts = {}; series.forEach(s=>{ const z=s.z||'Unknown'; zCounts[z]=(zCounts[z]||0)+1; });
             let html='';
-            for(const k in zCounts){ html+=`<div class="gain-card"><b>${k}</b><br>${zCounts[k]} events</div>`; }
+            for(const k in zCounts){ html+=`<div class="gain-card"><b>${escapeHtml(k)}</b><br>${zCounts[k]} events</div>`; }
             $('#gain-breakdown').html(html);
+        } else {
+            $('#chart-stats').html('<span class="stat-chip">No data in range</span>');
+            $('#gain-breakdown').empty();
         }
     });
 }
 
 function loadCompareChart(){
     if(!compareMode || selectedCompare.size===0) return;
+    if(!$('#chart').is(':visible')){ chartDirty=true; return; }
+    const gen=++chartGen;
     const freq = $('#agg-select').val();
     const params = { startDate: $('#startDate').val() || formatDate(startDate), endDate: $('#endDate').val() || formatDate(endDate) };
-    chart.updateSeries([]); clearAnnotations();
+    chart.updateSeries([]); clearAnnotations(); annotations = [];
+    if(currentStreamer && !selectedCompare.has(currentStreamer.replace('.json',''))){ currentStreamer = Array.from(selectedCompare).pop()+'.json'; localStorage.setItem("selectedStreamer", currentStreamer); renderStreamers(); }
     let promises = [];
     selectedCompare.forEach(name=>{
         const file = name+'.json';
@@ -287,10 +325,11 @@ function loadCompareChart(){
         promises.push($.getJSON(url, params).then(res=> ({name, data: res.series || []})));
     });
     Promise.all(promises).then(results=>{
+        if(gen!==chartGen) return;
         const series = results.map(r=> ({name: r.name, data: r.data}));
         chart.updateSeries(series, true);
         options.title.text = `Compare: ${Array.from(selectedCompare).join(', ')}`;
-        chart.updateOptions(options);
+        chart.updateOptions({ title: options.title }); $('#chart-title').text(options.title.text);
         $('#chart-stats').html(`<span class="stat-chip">Comparing ${selectedCompare.size} streamers</span>`);
         $('#gain-breakdown').html('');
     });
@@ -305,28 +344,30 @@ function updateChartStats(streamer){
 }
 
 function updateAnnotations(){
-    if($('#annotations').prop("checked")){
-        clearAnnotations();
-        if(annotations && annotations.length>0) annotations.forEach((ann,idx)=>{ ann.id=`id-${idx}`; chart.addXaxisAnnotation(ann,true); });
-    } else clearAnnotations();
+    clearAnnotations();
+    if($('#annotations').prop("checked") && $('#chart').is(':visible') && annotations) annotations.forEach((ann,idx)=>{ ann.id=`id-${idx}`; chart.addXaxisAnnotation(ann,true); });
 }
 function clearAnnotations(){ if(annotations) annotations.forEach((a,i)=>{ try{chart.removeAnnotation(a.id||`id-${i}`)}catch(e){}}); chart.clearAnnotations(); }
 
-let lastReceivedLogIndex=0, autoUpdateLog=true, logTimer=null, logFailCount=0;
+let lastReceivedLogIndex=0, autoUpdateLog=true, logTimer=null, logFailCount=0, logGen=0, logHint=false;
 function startLogPoll(){
     if(logTimer) { clearTimeout(logTimer); logTimer = null; }
     lastReceivedLogIndex = 0;
     logFailCount = 0;
     $('#log-content').text('');
+    logHint = false;
+    logGen++;
     pollLog();
 }
 function pollLog(){
     if(!$('#log').prop("checked")) return;
+    const gen = logGen;
     $.ajax({
         url: `/log?lastIndex=${lastReceivedLogIndex}`,
         type: 'GET',
         dataType: 'text',
         success: function(data, textStatus, xhr){
+            if(gen !== logGen) return;
             logFailCount = 0;
             const offsetHeader = xhr.getResponseHeader('X-Log-Offset');
             if (offsetHeader !== null) {
@@ -336,6 +377,7 @@ function pollLog(){
             }
             if (data) {
                 const el = $("#log-content");
+                if(logHint){ el.text(''); logHint=false; }
                 let cur = el.text() + data;
                 if (cur.length > 200000) {
                     cur = cur.slice(-100000);
@@ -347,7 +389,9 @@ function pollLog(){
                 logTimer = setTimeout(pollLog, 1500);
             }
         },
-        error: function(){
+        error: function(xhr){
+            if(gen !== logGen) return;
+            if(xhr.status===404 && !$('#log-content').text()){ $('#log-content').text('Enable save=True in logger_settings to view live log stream.'); logHint=true; }
             logFailCount++;
             const backoff = Math.min(30000, 2000 * Math.pow(1.5, logFailCount));
             if(autoUpdateLog && $('#log').prop("checked")) {
@@ -359,7 +403,7 @@ function pollLog(){
 $('#auto-update-log').click(()=>{
     autoUpdateLog=!autoUpdateLog;
     $('#auto-update-log').text(autoUpdateLog ? '⏸️ Pause' : '▶️ Resume');
-    if(autoUpdateLog) pollLog();
+    if(autoUpdateLog){ if(logTimer) clearTimeout(logTimer); logGen++; pollLog(); }
 });
 
 function exportCSV(){
@@ -373,12 +417,15 @@ function exportCSV(){
     });
 }
 
+let histGen=0;
 function loadHistory(){
+    const gen=++histGen;
     const streamer = $('#history-streamer-filter').val();
     const params = {};
     if(streamer) params.streamer=streamer;
     params.limit=500;
     $.getJSON('/api/bets', params, function(data){
+        if(gen!==histGen) return;
         historyRows = data;
         applyHistoryFilters();
         const wins = data.filter(r=>r.type==='WIN').length;
@@ -429,15 +476,14 @@ function renderHistoryTable(){
 }
 function goHistoryPage(p){ historyPage=p; renderHistoryTable(); }
 
-function loadConfig(){
-    $.getJSON('/api/enums', function(enums){ enumsCache=enums; });
-    $.getJSON('/api/config', function(cfg){
+function loadConfig(channelsOnly){
+    return $.getJSON('/api/enums').then(function(enums){ enumsCache=enums; return $.getJSON('/api/config'); }).then(function(cfg){
         if(cfg && cfg.can_add_streamer === false){
             $('.add-streamer-row').remove();
         }
-        renderGlobalConfig(cfg.global, cfg.priority);
+        if(!channelsOnly) renderGlobalConfig(cfg.global, cfg.priority);
         renderPerChannel(cfg.streamers);
-        renderPriority(cfg.priority);
+        if(!channelsOnly) renderPriority(cfg.priority);
     });
 }
 function renderGlobalConfig(global, priority){
@@ -467,7 +513,7 @@ function renderGlobalConfig(global, priority){
             <div class="form-group"><label>Delay</label><input id="g_delay" type="number" step="0.1"></div>
             <div class="form-group"><label>Filter by</label><select id="g_filter_by"><option value="">None</option></select></div>
             <div class="form-group"><label>Where</label><select id="g_filter_where"><option value="">-</option></select></div>
-            <div class="form-group"><label>Value</label><input id="g_filter_value" type="number"></div>
+            <div class="form-group"><label>Value</label><input id="g_filter_value" type="number" step="any"></div>
         </div>
     `);
     if(enumsCache){
@@ -512,7 +558,7 @@ function saveGlobalConfig(){
             stealth_mode: $('#g_stealth_mode').val()==='true',
             delay_mode: $('#g_delay_mode').val(),
             delay: parseFloat($('#g_delay').val()||6),
-            filter_condition: $('#g_filter_by').val() ? {by: $('#g_filter_by').val(), where: $('#g_filter_where').val(), value: parseInt($('#g_filter_value').val()||0)} : null
+            filter_condition: $('#g_filter_by').val() ? {by: $('#g_filter_by').val(), where: $('#g_filter_where').val()||'GTE', value: parseFloat($('#g_filter_value').val()||0)} : null
         }
     };
     $.ajax({url:'/api/config', method:'PUT', contentType:'application/json', data: JSON.stringify({global}), success:function(res){
@@ -532,8 +578,8 @@ function renderPerChannel(streamers){
                 <div class="channel-header" onclick="$(this).parent().toggleClass('open')">
                     <span class="name"><i class="fa-solid fa-user"></i> ${safeName} ${hasCfg?'':'<span style="color:var(--muted);font-weight:400">(using global)</span>'}</span>
                     <div class="channel-actions">
-                        <button class="btn-small" onclick="event.stopPropagation(); saveChannel('${safeName}')"><i class="fa-solid fa-floppy-disk"></i> Save</button>
-                        <button class="btn-small" onclick="event.stopPropagation(); deleteChannel('${safeName}')" title="Delete"><i class="fa-solid fa-trash"></i></button>
+                        <button class="btn-small" onclick="event.stopPropagation(); saveChannel(${jsArg(name)})"><i class="fa-solid fa-floppy-disk"></i> Save</button>
+                        <button class="btn-small" onclick="event.stopPropagation(); deleteChannel(${jsArg(name)})" title="Delete"><i class="fa-solid fa-trash"></i></button>
                         <i class="fa-solid fa-chevron-down"></i>
                     </div>
                 </div>
@@ -551,7 +597,7 @@ function renderPerChannel(streamers){
                         <div class="form-group"><label>Delay</label><input id="${safeName}_delay" type="number" step="0.1" placeholder="Global"></div>
                         <div class="form-group"><label>Filter by</label><select id="${safeName}_filter_by"><option value="">None/Global</option></select></div>
                         <div class="form-group"><label>Where</label><select id="${safeName}_filter_where"><option value="">-</option></select></div>
-                        <div class="form-group"><label>Value</label><input id="${safeName}_filter_value" type="number" placeholder="Global"></div>
+                        <div class="form-group"><label>Value</label><input id="${safeName}_filter_value" type="number" step="any" placeholder="Global"></div>
                     </div>
                     <div class="save-status" id="${safeName}-status"></div>
                 </div>
@@ -601,12 +647,11 @@ function saveChannel(name){
     const dmode=getVal('delay_mode'); if(dmode) bet.delay_mode=dmode;
     const del=getFloat('delay'); if(del!==undefined) bet.delay=del;
     const fby=getVal('filter_by'); const fwh=getVal('filter_where'); const fval=getVal('filter_value');
-    if(fby) bet.filter_condition={by:fby, where:fwh||'GTE', value: parseInt(fval||0, 10)};
-    else if(Object.keys(bet).length>0) bet.filter_condition=null;
+    if(fby) bet.filter_condition={by:fby, where:fwh||'GTE', value: parseFloat(fval||0)};
     if(Object.keys(bet).length>0) data.bet=bet;
     $.ajax({url:`/api/config/streamer/${encodeURIComponent(name)}`, method:'PUT', contentType:'application/json', data: JSON.stringify(data), success:function(){
-        $(`#${safeName}-status`).text('Saved ✔').addClass('ok'); setTimeout(()=>$(`#${safeName}-status`).text(''),2000);
-        loadConfig();
+        $(`#ch-${safeName} .name span`).remove();
+        $(`#${safeName}-status`).text('Saved ✔').removeClass('err').addClass('ok'); setTimeout(()=>$(`#${safeName}-status`).text(''),2000);
     }, error:function(xhr){ $(`#${safeName}-status`).text('Error '+xhr.responseText).addClass('err'); }});
 }
 function deleteChannel(name){
@@ -619,7 +664,7 @@ function deleteChannel(name){
         url:`/api/config/streamer/${encodeURIComponent(name)}`,
         method:'DELETE',
         success:function(){
-            loadConfig();
+            loadConfig(true);
             loadOverview();
             getStreamers();
         },
@@ -629,6 +674,7 @@ function deleteChannel(name){
     });
 }
 function addStreamer(){
+    if($('#btn-add-streamer').prop('disabled')) return;
     const name=$('#new-streamer-name').val().trim().toLowerCase();
     if(!name) return alert('Enter username');
     const btn = $('#btn-add-streamer');
@@ -641,7 +687,7 @@ function addStreamer(){
         success:function(){
             btn.prop('disabled', false);
             $('#new-streamer-name').val('');
-            loadConfig();
+            loadConfig(true);
             loadOverview();
             getStreamers();
         },
@@ -656,7 +702,7 @@ function renderPriority(priority){
     const list = priority && priority.length>0 ? priority : (enumsCache? enumsCache.priorities.slice(0,3): ['STREAK','DROPS','ORDER']);
     c.html(list.map((p,i)=>{
         const safeP = escapeHtml(p);
-        return `<div class="priority-item" draggable="true" data-p="${safeP}" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;margin-bottom:4px;background:var(--bg);cursor:move"><i class="fa-solid fa-grip"></i> ${i+1}. ${safeP} <button class="btn-small" style="float:right" onclick="removePriority('${safeP}')"><i class="fa-solid fa-xmark"></i></button></div>`;
+        return `<div class="priority-item" draggable="true" data-p="${safeP}" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;margin-bottom:4px;background:var(--bg);cursor:move"><i class="fa-solid fa-grip"></i> ${i+1}. ${safeP} <button class="btn-small" style="float:right" onclick="removePriority(${jsArg(p)})"><i class="fa-solid fa-xmark"></i></button></div>`;
     }).join('') + `<div style="margin-top:8px"><select id="new-priority-val" class="input"></select> <button class="btn-small" onclick="addPriority()"><i class="fa-solid fa-plus"></i> Add</button></div>`);
     if(enumsCache) $('#new-priority-val').html(enumsCache.priorities.map(v=>`<option value="${v}">${v}</option>`).join(''));
     let dragSrc=null;

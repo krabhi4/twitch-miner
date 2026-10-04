@@ -17,7 +17,6 @@ from secrets import choice, token_hex
 from typing import Any, Dict
 
 import requests
-import validators
 
 from TwitchChannelPointsMiner.classes.entities.Campaign import Campaign
 from TwitchChannelPointsMiner.classes.entities.CommunityGoal import CommunityGoal
@@ -70,7 +69,7 @@ class Twitch(object):
 
     def __init__(self, username, user_agent, password=None):
         cookies_path = os.path.join(Path().absolute(), "cookies")
-        Path(cookies_path).mkdir(parents=True, exist_ok=True)
+        Path(cookies_path).mkdir(mode=0o700, parents=True, exist_ok=True)
         self.cookies_file = os.path.join(cookies_path, f"{username}.pkl")
         self.user_agent = user_agent
         self.device_id = "".join(
@@ -83,18 +82,25 @@ class Twitch(object):
         # self.integrity = None
         # self.integrity_expire = 0
         self.client_session = token_hex(16)
-        self.client_version = CLIENT_VERSION
+        self.client_version = None
         self.twilight_build_id_pattern = re.compile(
             r'window\.__twilightBuildID\s*=\s*"([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})"'
         )
 
     def login(self):
         if not os.path.isfile(self.cookies_file):
-            if self.twitch_login.login_flow():
-                self.twitch_login.save_cookies(self.cookies_file)
+            if not self.twitch_login.login_flow():
+                raise SystemExit("Twitch login failed")
+            self.twitch_login.save_cookies(self.cookies_file)
         else:
             self.twitch_login.load_cookies(self.cookies_file)
             self.twitch_login.set_token(self.twitch_login.get_auth_token())
+            json_data = copy.deepcopy(GQLOperations.GetIDFromLogin)
+            json_data["variables"]["login"] = self.twitch_login.username
+            if self.post_gql_request(json_data).get("status") == 401:
+                logger.warning("Saved auth token is invalid or expired, login again")
+                os.remove(self.cookies_file)
+                self.login()
 
     # === STREAMER / STREAM / INFO === #
     def update_stream(self, streamer):
@@ -133,6 +139,8 @@ class Twitch(object):
                 streamer.stream.payload = [
                     {"event": "minute-watched", "properties": event_properties}
                 ]
+                return True
+        return False
 
     def get_spade_url(self, streamer):
         try:
@@ -195,11 +203,10 @@ class Twitch(object):
         if streamer.is_online is False:
             try:
                 self.get_spade_url(streamer)
-                self.update_stream(streamer)
+                if self.update_stream(streamer):
+                    streamer.set_online()
             except StreamerIsOfflineException:
                 streamer.set_offline()
-            else:
-                streamer.set_online()
         else:
             try:
                 self.update_stream(streamer)
@@ -210,14 +217,10 @@ class Twitch(object):
         json_data = copy.deepcopy(GQLOperations.GetIDFromLogin)
         json_data["variables"]["login"] = streamer_username
         json_response = self.post_gql_request(json_data)
-        if (
-            "data" not in json_response
-            or "user" not in json_response["data"]
-            or json_response["data"]["user"] is None
-        ):
+        user = (json_response.get("data") or {}).get("user")
+        if not user:
             raise StreamerDoesNotExistException
-        else:
-            return json_response["data"]["user"]["id"]
+        return user["id"]
 
     def get_followers(
         self, limit: int = 100, order: FollowersOrder = FollowersOrder.ASC
@@ -260,7 +263,7 @@ class Twitch(object):
         response = self.post_gql_request(json_data)
         try:
             streamer.viewer_is_mod = response["data"]["user"]["self"]["isModerator"]
-        except (ValueError, KeyError):
+        except (ValueError, KeyError, TypeError):
             streamer.viewer_is_mod = False
 
     # === 'GLOBALS' METHODS === #
@@ -275,7 +278,7 @@ class Twitch(object):
     def __check_connection_handler(self, chunk_size):
         # The success rate It's very hight usually. Why we have failed?
         # Check internet connection ...
-        while internet_connection_available() is False:
+        while self.running and internet_connection_available() is False:
             random_sleep = random.randint(1, 3)
             logger.warning(
                 f"No internet connection available! Retry after {random_sleep}m"
@@ -301,6 +304,7 @@ class Twitch(object):
                         "User-Agent": self.user_agent,
                         "X-Device-Id": self.device_id,
                     },
+                    timeout=20,
                 ),
             )
             logger.debug(
@@ -385,21 +389,26 @@ class Twitch(object):
                 logger.debug(
                     f"Error with update_client_version: {response.status_code}"
                 )
+                self.client_version = CLIENT_VERSION
                 return self.client_version
             matcher = re.search(self.twilight_build_id_pattern, response.text)
             if not matcher:
                 logger.debug("Error with update_client_version: no match")
+                self.client_version = CLIENT_VERSION
                 return self.client_version
             self.client_version = matcher.group(1)
             logger.debug(f"Client version: {self.client_version}")
             return self.client_version
         except requests.exceptions.RequestException as e:
             logger.error(f"Error with update_client_version: {e}")
+            self.client_version = CLIENT_VERSION
             return self.client_version
 
     def send_minute_watched_events(self, streamers, priority, chunk_size=3):
+        all_streamers = streamers
         while self.running:
             try:
+                streamers = list(all_streamers)
                 streamers_index = [
                     i
                     for i in range(0, len(streamers))
@@ -504,6 +513,8 @@ class Twitch(object):
                 for index in streamers_watching:
                     next_iteration = time.time() + 20 / len(streamers_watching)
 
+                    if streamers[index].stream.spade_url is None:
+                        self.get_spade_url(streamers[index])
                     try:
                         response = requests.post(
                             streamers[index].stream.spade_url,
@@ -582,6 +593,8 @@ class Twitch(object):
                         logger.debug(
                             f"Timed out while trying to send minute watched: {e}"
                         )
+                    except requests.exceptions.RequestException as e:
+                        logger.error(f"Error while trying to send minute watched: {e}")
 
                     self.__chuncked_sleep(
                         next_iteration - time.time(), chunk_size=chunk_size
@@ -606,9 +619,14 @@ class Twitch(object):
                     f"Invalid response from load_channel_points_context for {streamer.username}: {response}"
                 )
                 return
-            if response["data"]["community"] is None:
+            if response["data"].get("community") is None:
                 raise StreamerDoesNotExistException
             channel = response["data"]["community"]["channel"]
+            if not channel or not (channel.get("self") or {}).get("communityPoints"):
+                logger.warning(
+                    f"Missing channel points data in load_channel_points_context for {streamer.username}"
+                )
+                return
             community_points = channel["self"]["communityPoints"]
             streamer.channel_points = community_points["balance"]
             streamer.activeMultipliers = community_points["activeMultipliers"]
@@ -624,6 +642,7 @@ class Twitch(object):
 
             if streamer.settings.community_goals is True:
                 self.contribute_to_community_goals(streamer)
+            return True
 
     def make_predictions(self, event):
         decision = event.bet.calculate(event.streamer.channel_points)
@@ -674,13 +693,11 @@ class Twitch(object):
                         }
                     }
                     response = self.post_gql_request(json_data)
-                    if (
-                        "data" in response
-                        and "makePrediction" in response["data"]
-                        and "error" in response["data"]["makePrediction"]
-                        and response["data"]["makePrediction"]["error"] is not None
-                    ):
-                        error_code = response["data"]["makePrediction"]["error"]["code"]
+                    make_prediction = (response.get("data") or {}).get("makePrediction")
+                    if not make_prediction or make_prediction.get("error"):
+                        error_code = ((make_prediction or {}).get("error") or {}).get(
+                            "code", "no response"
+                        )
                         logger.error(
                             f"Failed to place bet, error: {error_code}",
                             extra={
@@ -737,7 +754,7 @@ class Twitch(object):
         response = self.post_gql_request(json_data)
         try:
             channel = (
-                response.get("data", {}).get("channel")
+                (response.get("data") or {}).get("channel")
                 if isinstance(response, dict)
                 else None
             )
@@ -767,15 +784,12 @@ class Twitch(object):
 
     def __get_drops_dashboard(self, status=None):
         response = self.post_gql_request(GQLOperations.ViewerDropsDashboard)
-        campaigns = (
-            response.get("data", {}).get("currentUser", {}).get("dropCampaigns", [])
-            or []
-        )
+        campaigns = ((response.get("data") or {}).get("currentUser") or {}).get(
+            "dropCampaigns"
+        ) or []
 
         if status is not None:
-            campaigns = (
-                list(filter(lambda x: x["status"] == status.upper(), campaigns)) or []
-            )
+            campaigns = [x for x in campaigns if x.get("status") == status.upper()]
 
         return campaigns
 
@@ -796,8 +810,8 @@ class Twitch(object):
                 logger.debug("Unexpected campaigns response format, skipping chunk")
                 continue
             for r in response:
-                drop_campaign = (
-                    r.get("data", {}).get("user", {}).get("dropCampaign", None)
+                drop_campaign = ((r.get("data") or {}).get("user") or {}).get(
+                    "dropCampaign"
                 )
                 if drop_campaign is not None:
                     result.append(drop_campaign)
@@ -807,7 +821,9 @@ class Twitch(object):
         # We need the inventory only for get the real updated value/progress
         # Get data from inventory and sync current status with streamers.campaigns
         inventory = self.__get_inventory()
-        if inventory not in [None, {}] and inventory["dropCampaignsInProgress"] not in [
+        if inventory not in [None, {}] and inventory.get(
+            "dropCampaignsInProgress"
+        ) not in [
             None,
             {},
         ]:
@@ -851,15 +867,15 @@ class Twitch(object):
                 return True
             else:
                 return False
-        except (ValueError, KeyError):
+        except (ValueError, KeyError, TypeError):
             return False
 
     def claim_all_drops_from_inventory(self):
         inventory = self.__get_inventory()
         if inventory not in [None, {}]:
-            if inventory["dropCampaignsInProgress"] not in [None, {}]:
+            if inventory.get("dropCampaignsInProgress") not in [None, {}]:
                 for campaign in inventory["dropCampaignsInProgress"]:
-                    for drop_dict in campaign["timeBasedDrops"]:
+                    for drop_dict in campaign.get("timeBasedDrops") or []:
                         drop = Drop(drop_dict)
                         drop.update(drop_dict["self"])
                         if drop.is_claimable is True:
@@ -877,7 +893,7 @@ class Twitch(object):
                     # or ((time.time() - campaigns_update) / 60) > 60
                     # TEMPORARY AUTO DROP CLAIMING FIX
                     # 30 minutes instead of 60 minutes
-                    or ((time.time() - campaigns_update) / 30) > 30
+                    or (time.time() - campaigns_update) > 30 * 60
                     #####################################
                 ):
                     campaigns_update = time.time()
@@ -909,22 +925,22 @@ class Twitch(object):
                 campaigns = self.__sync_campaigns(campaigns)
 
                 # Check if user It's currently streaming the same game present in campaigns_details
-                for i in range(0, len(streamers)):
-                    if streamers[i].drops_condition() is True:
+                for streamer in list(streamers):
+                    if streamer.drops_condition() is True:
                         # yes! The streamer[i] have the drops_tags enabled and we It's currently stream a game with campaign active!
                         # With 'campaigns_ids' we are also sure that this streamer have the campaign active.
                         # yes! The streamer[index] have the drops_tags enabled and we It's currently stream a game with campaign active!
-                        streamers[i].stream.campaigns = list(
+                        streamer.stream.campaigns = list(
                             filter(
                                 lambda x: x.drops != []
-                                and x.game == streamers[i].stream.game
-                                and x.id in streamers[i].stream.campaigns_ids,
+                                and x.game == streamer.stream.game
+                                and x.id in streamer.stream.campaigns_ids,
                                 campaigns,
                             )
                         )
 
-            except (ValueError, KeyError, requests.exceptions.ConnectionError) as e:
-                logger.error(f"Error while syncing inventory: {e}")
+            except Exception as e:
+                logger.error(f"Error while syncing inventory: {e}", exc_info=True)
                 campaigns = []
                 self.__check_connection_handler(chunk_size)
 
@@ -959,7 +975,7 @@ class Twitch(object):
 
             for goal_contribution in user_goal_contributions:
                 goal_id = goal_contribution["goal"]["id"]
-                goal = streamer.community_goals[goal_id]
+                goal = streamer.community_goals.get(goal_id)
                 if goal is None:
                     logger.error(
                         f"Unable to find context data for community goal {goal_id}"
@@ -1007,10 +1023,8 @@ class Twitch(object):
             return
 
         error = (
-            response.get("data", {})
-            .get("contributeCommunityPointsCommunityGoal", {})
-            .get("error")
-        )
+            response["data"].get("contributeCommunityPointsCommunityGoal") or {}
+        ).get("error")
         if error:
             logger.error(
                 f"Unable to contribute channel points to community goal '{title}', reason '{error}'"

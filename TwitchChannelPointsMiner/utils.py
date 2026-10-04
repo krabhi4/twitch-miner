@@ -1,18 +1,21 @@
+import logging
 import os
 import re
 import secrets
 import socket
 import string
 import sys
-import time
 from copy import deepcopy
 from datetime import datetime, timezone
 from os import path
 
+import emoji
 import requests
 from millify import millify
 
 from TwitchChannelPointsMiner.constants import USER_AGENTS, GITHUB_url
+
+logger = logging.getLogger(__name__)
 
 
 def _millify(input, precision=2):
@@ -34,10 +37,11 @@ def float_round(number, ndigits=2):
 
 def server_time(message_data):
     return (
-        datetime.fromtimestamp(message_data["server_time"], timezone.utc).isoformat()
-        + "Z"
+        datetime.fromtimestamp(message_data["server_time"], timezone.utc)
+        .isoformat()
+        .replace("+00:00", "Z")
         if message_data is not None and "server_time" in message_data
-        else datetime.fromtimestamp(time.time(), timezone.utc).isoformat() + "Z"
+        else datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     )
 
 
@@ -56,46 +60,8 @@ def get_user_agent(browser: str) -> str:
     # return USER_AGENTS["Android"]["App"]
 
 
-EMOJI_PATTERN = re.compile(
-    "["
-    "\U0001F600-\U0001F64F"
-    "\U0001F300-\U0001F5FF"
-    "\U0001F680-\U0001F6FF"
-    "\U0001F1E0-\U0001F1FF"
-    "\U00002500-\U00002587"
-    "\U00002589-\U00002BEF"
-    "\U00002702-\U000027B0"
-    "\U000024C2-\U00002587"
-    "\U00002589-\U0001F251"
-    "\U0001f926-\U0001f937"
-    "\U00010000-\U0010ffff"
-    "\u2640-\u2642"
-    "\u2600-\u2B55"
-    "\u200d"
-    "\u23cf"
-    "\u23e9"
-    "\u231a"
-    "\ufe0f"
-    "\u3030"
-    "\u231b"
-    "\u2328"
-    "\u23ea"
-    "\u23eb"
-    "\u23ec"
-    "\u23ed"
-    "\u23ee"
-    "\u23ef"
-    "\u23f0"
-    "\u23f1"
-    "\u23f2"
-    "\u23f3"
-    "]+",
-    flags=re.UNICODE,
-)
-
-
 def remove_emoji(string: str) -> str:
-    return EMOJI_PATTERN.sub(r"", string) if string else ""
+    return emoji.replace_emoji(string, replace="") if string else ""
 
 
 def at_least_one_value_in_settings_is(items, attr, value=True):
@@ -116,7 +82,7 @@ def copy_values_if_none(settings, defaults):
 
     for value in values:
         if getattr(settings, value) is None:
-            setattr(settings, value, getattr(defaults, value))
+            setattr(settings, value, deepcopy(getattr(defaults, value)))
     return settings
 
 
@@ -131,7 +97,7 @@ def set_default_settings(settings, defaults):
     )
 
 
-def internet_connection_available(host="8.8.8.8", port=53, timeout=3):
+def internet_connection_available(host="gql.twitch.tv", port=443, timeout=3):
     try:
         with socket.create_connection((host, port), timeout=timeout):
             return True
@@ -159,15 +125,16 @@ def download_file(name, fpath):
         if r.status_code == 200:
             dir_path = path.dirname(fpath)
             if dir_path:
-                import os
-
                 os.makedirs(dir_path, exist_ok=True)
-            with open(fpath, "wb") as f:
+            with open(fpath + ".part", "wb") as f:
                 for chunk in r.iter_content(chunk_size=1024):
                     if chunk:
                         f.write(chunk)
+            os.replace(fpath + ".part", fpath)
             return True
     except requests.RequestException:
+        if path.isfile(fpath + ".part"):
+            os.remove(fpath + ".part")
         return False
     return False
 
@@ -264,22 +231,13 @@ def apply_bet_settings_dict(blive, b: dict):
             blive.filter_condition = None
         else:
             try:
-                cond = FilterCondition(
-                    by=(
-                        OutcomeKeys[fc["by"]]
-                        if fc.get("by") and hasattr(OutcomeKeys, fc["by"])
-                        else fc.get("by")
-                    ),
-                    where=(
-                        Condition[fc["where"]]
-                        if fc.get("where") and hasattr(Condition, fc["where"])
-                        else fc.get("where")
-                    ),
+                blive.filter_condition = FilterCondition(
+                    by=getattr(OutcomeKeys, str(fc.get("by")).upper()),
+                    where=Condition[str(fc.get("where")).upper()],
                     value=fc.get("value"),
                 )
-                blive.filter_condition = cond
-            except Exception:
-                pass
+            except (AttributeError, KeyError):
+                logger.warning(f"Ignoring invalid bet filter_condition: {fc}")
 
 
 def apply_streamer_settings_dict(settings, data: dict):
@@ -311,17 +269,6 @@ def apply_streamer_settings_dict(settings, data: dict):
             blive = BetSettings()
             settings.bet = blive
         apply_bet_settings_dict(blive, data["bet"])
-
-
-def apply_settings_dict_to_streamer(streamer, data: dict):
-    if (
-        not streamer
-        or not data
-        or not hasattr(streamer, "settings")
-        or not streamer.settings
-    ):
-        return
-    apply_streamer_settings_dict(streamer.settings, data)
 
 
 def parse_priority_list(items):

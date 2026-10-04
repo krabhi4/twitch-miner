@@ -6,9 +6,9 @@
     <title>Twitch Channel Points Miner</title>
     <link rel="icon" type="image/png" sizes="32x32" href="https://static.twitchcdn.net/assets/favicon-32-e29e246c157142c94346.png">
     <link rel="icon" type="image/png" sizes="16x16" href="https://static.twitchcdn.net/assets/favicon-16-52e571ffea063af7a7f4.png">
-    <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.42.0" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js" crossorigin="anonymous"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet" crossorigin="anonymous" />
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts@7.8.0/dist/apexcharts.min.js" integrity="sha384-y7lcLq5TTJoz4wVoWcS82z2WSdodzXPGJ2jQJJ7VBvcBXS/40PEpQEyKavvWRe0d" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@4.0.0/dist/jquery.min.js" integrity="sha384-fgGyf7Mo7DURSOMnOy7ed+dkq5Job205Gnzu6QIg0BOHKaqt4D76Dt8VlDCzcMHV" crossorigin="anonymous"></script>
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css" rel="stylesheet" integrity="sha384-qrALq7+6jBOZIQsNnT6xGkMDru64qD6uTlDra39xrt2SoXl4pO3FX6Roz/RpR/BS" crossorigin="anonymous" />
     <link href="{{url_for('static', filename='style.css')}}" rel="stylesheet" />
     <link href="{{url_for('static', filename='dark-theme.css')}}" rel="stylesheet" />
 </head>
@@ -106,9 +106,9 @@
                 <input class="input date-input" type="date" id="endDate">
                 <select id="agg-select" class="input" title="Aggregation">
                     <option value="raw">Raw</option>
-                    <option value="30Min" selected>30 min</option>
-                    <option value="1H">1 hour</option>
-                    <option value="6H">6 hours</option>
+                    <option value="30min" selected>30 min</option>
+                    <option value="1h">1 hour</option>
+                    <option value="6h">6 hours</option>
                     <option value="1D">1 day</option>
                 </select>
             </div>
@@ -216,7 +216,7 @@
         var darkMode = $('#dark-mode').prop("checked");
         $("link[href*='dark-theme.css']").prop("disabled", !darkMode);
         document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
-        if (window.chart) {
+        if (typeof chart !== 'undefined') {
             chart.updateOptions({
                 colors: darkMode ? ["#9146ff", "#00c7b7", "#e0af68", "#ff5c8d", "#3b82f6", "#10b981"] : ["#772ce8", "#0284c7", "#d97706", "#e11d48", "#2563eb", "#059669"],
                 chart: { foreColor: darkMode ? "#9ca3af" : "#4b5563" },
@@ -238,7 +238,7 @@
     let refresh = parseInt({{ refresh|tojson }}, 10);
     let daysAgo = parseInt({{ daysAgo|tojson }}, 10);
     let canAddStreamer = {{ can_add_streamer|default(true)|tojson }};
-    if (isNaN(refresh) || refresh <= 0) { refresh = 60; }
+    if (isNaN(refresh) || refresh < 0) { refresh = 0; }
     if (isNaN(daysAgo) || daysAgo < 0) { daysAgo = 7; }
 </script>
 <script type="text/javascript" src="{{url_for('static', filename='script.js')}}"></script>

@@ -1233,6 +1233,8 @@ a:hover {
 
 .apexcharts-toolbar {
   z-index: 10;
+  background: transparent !important;
+  backdrop-filter: none !important;
 }
 
 .apexcharts-toolbar svg {

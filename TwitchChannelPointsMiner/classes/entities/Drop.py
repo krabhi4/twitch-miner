@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from TwitchChannelPointsMiner.classes.Settings import Settings
 from TwitchChannelPointsMiner.utils import percentage
@@ -60,7 +60,9 @@ class Drop(object):
         self.end_at = parse_datetime(data.get("endAt"))
         self.start_at = parse_datetime(data.get("startAt"))
         self.dt_match = (
-            self.start_at < datetime.now() < self.end_at
+            self.start_at
+            < datetime.now(timezone.utc).replace(tzinfo=None)
+            < self.end_at
             if (self.start_at and self.end_at)
             else False
         )

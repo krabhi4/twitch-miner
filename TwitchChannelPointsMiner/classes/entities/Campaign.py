@@ -1,16 +1,7 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
-from TwitchChannelPointsMiner.classes.entities.Drop import Drop
+from TwitchChannelPointsMiner.classes.entities.Drop import Drop, parse_datetime
 from TwitchChannelPointsMiner.classes.Settings import Settings
-
-
-def parse_datetime(datetime_str):
-    for fmt in ("%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ"):
-        try:
-            return datetime.strptime(datetime_str, fmt)
-        except ValueError:
-            continue
-    raise ValueError(f"time data '{datetime_str}' does not match format")
 
 
 class Campaign(object):
@@ -38,9 +29,15 @@ class Campaign(object):
         self.channels = [x["id"] for x in allow_channels] if allow_channels else []
         self.in_inventory = False
 
-        self.end_at = parse_datetime(dict["endAt"])
-        self.start_at = parse_datetime(dict["startAt"])
-        self.dt_match = self.start_at < datetime.now() < self.end_at
+        self.end_at = parse_datetime(dict.get("endAt"))
+        self.start_at = parse_datetime(dict.get("startAt"))
+        self.dt_match = (
+            self.start_at
+            < datetime.now(timezone.utc).replace(tzinfo=None)
+            < self.end_at
+            if (self.start_at and self.end_at)
+            else False
+        )
 
         self.drops = [Drop(x) for x in (dict.get("timeBasedDrops") or [])]
 

@@ -293,6 +293,8 @@ class Bet(object):
 
     def calculate(self, balance: int) -> dict:
         self.decision = {"choice": None, "amount": 0, "id": None}
+        if not self.outcomes:
+            return self.decision
         if self.settings.strategy == Strategy.MOST_VOTED:
             self.decision["choice"] = self.__return_choice(OutcomeKeys.TOTAL_USERS)
         elif self.settings.strategy == Strategy.HIGH_ODDS:

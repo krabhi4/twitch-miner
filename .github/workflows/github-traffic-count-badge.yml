@@ -73,7 +73,8 @@ jobs:
       - name: update traffic.json
         if: steps.check_secret.outputs.skip != 'true'
         run: |
-          curl https://gist.githubusercontent.com/MShawon/d37c49ee4ce03f64b92ab58b0cec289f/raw/traffic.py > traffic.py
+          curl -fsSL https://gist.githubusercontent.com/MShawon/d37c49ee4ce03f64b92ab58b0cec289f/raw/5f30c10beec515156b1439ab47f17ffafd7cddd2/traffic.py > traffic.py
+          echo "a7b8b137d1691cb713eab876faef3536de3a37906c5fb997dd26b1ba13d0fa3c  traffic.py" | sha256sum -c -
           python3 traffic.py
 
       - name: Update gist with latest count
