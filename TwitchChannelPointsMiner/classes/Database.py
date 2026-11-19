@@ -228,7 +228,8 @@ class DatabaseManager:
                             (streamer_annotations_table, annotations_batch),
                         ):
                             for i in range(0, len(rows), 1000):
-                                conn.execute(insert(table), rows[i : i + 1000])
+                                end = i + 1000
+                                conn.execute(insert(table), rows[i:end])
                 except Exception as e:
                     logger.error(f"Failed to migrate {f}: {e}")
                     continue

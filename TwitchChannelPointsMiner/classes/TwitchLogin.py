@@ -14,10 +14,7 @@ from time import sleep
 
 import requests
 
-from TwitchChannelPointsMiner.classes.Exceptions import (
-    BadCredentialsException,
-    WrongCookiesException,
-)
+from TwitchChannelPointsMiner.classes.Exceptions import WrongCookiesException
 from TwitchChannelPointsMiner.classes.Settings import Events
 from TwitchChannelPointsMiner.constants import CLIENT_ID, USER_AGENTS, GQLOperations
 
