@@ -138,7 +138,8 @@ class TwitchLogin(object):
                     extra={"emoji": ":wrench:", "event": Events.LOGIN_FLOW},
                 )
                 logger.info(
-                    f"Hurry up! It will expire in {int(login_response_json['expires_in'] / 60)} minutes!",
+                    "Hurry up! It will expire in"
+                    f" {int(login_response_json['expires_in'] / 60)} minutes!",
                     extra={"emoji": ":wrench:", "event": Events.LOGIN_FLOW},
                 )
                 # twofa = input("2FA token: ")
@@ -180,7 +181,8 @@ class TwitchLogin(object):
                     # continue
                     # invalidate_after is not None
                     # account for the expiration landing during the request
-                    # and datetime.now(timezone.utc) >= (invalidate_after - session_timeout)
+                    # and datetime.now(timezone.utc)
+                    # >= (invalidate_after - session_timeout)
                     # ):
                     # raise RequestInvalid()
                     else:
@@ -208,8 +210,11 @@ class TwitchLogin(object):
 
     # def send_login_request(self, json_data):
     def send_oauth_request(self, url, json_data):
-        # response = self.session.post("https://passport.twitch.tv/protected_login", json=json_data)
-        """response = self.session.post("https://passport.twitch.tv/login", json=json_data, headers={
+        # response = self.session.post(
+        #     "https://passport.twitch.tv/protected_login", json=json_data
+        # )
+        """response = self.session.post(
+            "https://passport.twitch.tv/login", json=json_data, headers={
             'Accept': 'application/vnd.twitchtv.v3+json',
             'Accept-Encoding': 'gzip',
             'Accept-Language': 'en-US',
@@ -258,7 +263,11 @@ class TwitchLogin(object):
         options.add_argument('--lang=en')
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-gpu')
-        # options.add_argument("--user-agent=\"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36\"")
+        # options.add_argument(
+        #     "--user-agent=\"Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+        #     " AppleWebKit/537.36 (KHTML, like Gecko)"
+        #     " Chrome/107.0.0.0 Safari/537.36\""
+        # )
         # options.add_argument("--window-size=1920,1080")
         # options.set_capability("detach", True)
 
@@ -274,11 +283,15 @@ class TwitchLogin(object):
         driver.find_element(By.ID, 'password-input').send_keys(password)
         sleep(0.3)
         driver.execute_script(
-            'document.querySelector("#root > div > div.scrollable-area > div.simplebar-scroll-content > div > div > div > div.Layout-sc-nxg1ff-0.gZaqky > form > div > div:nth-child(3) > button > div > div").click()'
+            'document.querySelector("#root > div > div.scrollable-area'
+            ' > div.simplebar-scroll-content > div > div > div'
+            ' > div.Layout-sc-nxg1ff-0.gZaqky > form > div > div:nth-child(3)'
+            ' > button > div > div").click()'
         )
 
         logger.info(
-            'Enter your verification code in the browser and wait for the Twitch website to load, then press Enter here.'
+            'Enter your verification code in the browser and wait for the Twitch'
+            ' website to load, then press Enter here.'
         )
         input()
 
@@ -296,7 +309,10 @@ class TwitchLogin(object):
 
         return self.get_cookie_value("auth-token")"""
 
-        # logger.error("Backup login flow is not available. Use a VPN or wait a while to avoid the CAPTCHA.")
+        # logger.error(
+        #     "Backup login flow is not available."
+        #     " Use a VPN or wait a while to avoid the CAPTCHA."
+        # )
         # return False
 
         """Backup OAuth login flow in case manual captcha solving is required"""
@@ -308,7 +324,8 @@ class TwitchLogin(object):
             return None
 
         input(
-            "Please login inside your browser of choice (NOT incognito mode) and press Enter..."
+            "Please login inside your browser of choice (NOT incognito mode) and press"
+            " Enter..."
         )
         logger.info("Loading cookies saved on your computer...")
         twitch_domain = ".twitch.tv"

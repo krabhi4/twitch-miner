@@ -67,7 +67,10 @@ class Stream(object):
         logger.debug(f"Update: {self}")
 
     def __repr__(self):
-        return f"Stream(title={self.title}, game={self.__str_game()}, tags={self.__str_tags()})"
+        return (
+            f"Stream(title={self.title}, game={self.__str_game()},"
+            f" tags={self.__str_tags()})"
+        )
 
     def __str__(self):
         return (

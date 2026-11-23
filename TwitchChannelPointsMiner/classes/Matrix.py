@@ -44,7 +44,10 @@ class Matrix(object):
         if str(event) in self.events:
             try:
                 requests.post(
-                    url=f"https://{self.homeserver}/_matrix/client/r0/rooms/{self.room_id}/send/m.room.message",
+                    url=(
+                        f"https://{self.homeserver}/_matrix/client/r0/rooms/"
+                        f"{self.room_id}/send/m.room.message"
+                    ),
                     headers={"Authorization": f"Bearer {self.access_token}"},
                     json={"body": dedent(message), "msgtype": "m.text"},
                     timeout=10,

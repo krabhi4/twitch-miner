@@ -35,9 +35,12 @@ class WebSocketsPool:
 
     """
     API Limits
-    - Clients can listen to up to 50 topics per connection. Trying to listen to more topics will result in an error message.
-    - We recommend that a single client IP address establishes no more than 10 simultaneous connections.
-    The two limits above are likely to be relaxed for approved third-party applications, as we start to better understand third-party requirements.
+    - Clients can listen to up to 50 topics per connection.
+      Trying to listen to more topics will result in an error message.
+    - We recommend that a single client IP address establishes
+      no more than 10 simultaneous connections.
+    The two limits above are likely to be relaxed for approved third-party
+    applications, as we start to better understand third-party requirements.
     """
 
     def submit(self, topic):
@@ -100,7 +103,8 @@ class WebSocketsPool:
                 ws.listen(topic, ws.twitch.twitch_login.get_auth_token())
 
             while ws.is_closed is False:
-                # Else: the ws is currently in reconnecting phase, you can't do ping or other operation.
+                # Else: the ws is currently in reconnecting phase,
+                # you can't do ping or other operation.
                 # Probably this ws will be closed very soon with ws.is_closed = True
                 if ws.is_reconnecting is False:
                     ws.ping()  # We need ping for keep the connection alive
@@ -108,7 +112,8 @@ class WebSocketsPool:
 
                     if ws.elapsed_last_pong() > 5:
                         logger.info(
-                            f"#{ws.index} - The last PONG was received more than 5 minutes ago"
+                            f"#{ws.index} - The last PONG was received more than 5"
+                            " minutes ago"
                         )
                         WebSocketsPool.handle_reconnection(ws)
 
@@ -118,8 +123,10 @@ class WebSocketsPool:
 
     @staticmethod
     def on_error(ws, error):
-        # Connection lost | [WinError 10054] An existing connection was forcibly closed by the remote host
-        # Connection already closed | Connection is already closed (raise WebSocketConnectionClosedException)
+        # Connection lost | [WinError 10054]
+        #   An existing connection was forcibly closed by the remote host
+        # Connection already closed | Connection is already closed
+        #   (raise WebSocketConnectionClosedException)
         logger.error(f"#{ws.index} - WebSocket error: {error}")
 
     @staticmethod
@@ -130,7 +137,8 @@ class WebSocketsPool:
 
     @staticmethod
     def handle_reconnection(ws):
-        # Reconnect only if ws.is_reconnecting is False to prevent more than 1 ws from being created
+        # Reconnect only if ws.is_reconnecting is False
+        # to prevent more than 1 ws from being created
         with RECONNECT_LOCK:
             if ws.is_reconnecting is True:
                 return
@@ -151,7 +159,8 @@ class WebSocketsPool:
             while internet_connection_available() is False:
                 random_sleep = random.randint(1, 3)
                 logger.warning(
-                    f"#{ws.index} - No internet connection available! Retry after {random_sleep}m"
+                    f"#{ws.index} - No internet connection available! Retry after"
+                    f" {random_sleep}m"
                 )
                 time.sleep(random_sleep * 60)
 
@@ -240,7 +249,8 @@ class WebSocketsPool:
                             )
 
                     elif message.topic == "video-playback-by-id":
-                        # There is stream-up message type, but it's sent earlier than the API updates
+                        # There is stream-up message type,
+                        # but it's sent earlier than the API updates
                         if message.type == "stream-up":
                             streamer.stream_up = time.time()
                         elif message.type == "stream-down":
@@ -284,7 +294,8 @@ class WebSocketsPool:
                                 prediction_window_seconds = float(
                                     event_dict["prediction_window_seconds"]
                                 )
-                                # Reduce prediction window by 3/6s - Collect more accurate data for decision
+                                # Reduce prediction window by 3/6s
+                                # - Collect more accurate data for decision
                                 prediction_window_seconds = (
                                     streamer.get_prediction_window(
                                         prediction_window_seconds
@@ -324,7 +335,8 @@ class WebSocketsPool:
                                         place_bet_thread.start()
 
                                         logger.info(
-                                            f"Place the bet after: {start_after}s for: {ws.events_predictions[event_id]}",
+                                            f"Place the bet after: {start_after}s for:"
+                                            f" {ws.events_predictions[event_id]}",
                                             extra={
                                                 "emoji": ":alarm_clock:",
                                                 "event": Events.BET_START,
@@ -332,7 +344,10 @@ class WebSocketsPool:
                                         )
                                     else:
                                         logger.info(
-                                            f"{streamer} have only {streamer.channel_points} channel points and the minimum for bet is: {bet_settings.minimum_points}",
+                                            f"{streamer} have only"
+                                            f" {streamer.channel_points} channel points"
+                                            " and the minimum for bet is:"
+                                            f" {bet_settings.minimum_points}",
                                             extra={
                                                 "emoji": ":pushpin:",
                                                 "event": Events.BET_FILTERS,
@@ -344,7 +359,8 @@ class WebSocketsPool:
                             and event_id in ws.events_predictions
                         ):
                             ws.events_predictions[event_id].status = event_status
-                            # Game over we can't update anymore the values... The bet was placed!
+                            # Game over we can't update anymore the values...
+                            # The bet was placed!
                             if (
                                 ws.events_predictions[event_id].bet_placed is False
                                 and ws.events_predictions[event_id].bet.decision == {}
@@ -369,10 +385,9 @@ class WebSocketsPool:
                                 choice = event_prediction.bet.decision["choice"]
 
                                 logger.info(
-                                    (
-                                        f"{event_prediction} - Decision: {choice}: {decision['title']} "
-                                        f"({decision['color']}) - Result: {event_prediction.result['string']}"
-                                    ),
+                                    f"{event_prediction} - Decision: {choice}:"
+                                    f" {decision['title']} ({decision['color']}) -"
+                                    f" Result: {event_prediction.result['string']}",
                                     extra={
                                         "emoji": ":bar_chart:",
                                         "event": Events.get(
@@ -383,7 +398,8 @@ class WebSocketsPool:
 
                                 streamer.update_history("PREDICTION", points["gained"])
 
-                                # Remove duplicate history records from previous message sent in community-points-user-v1
+                                # Remove duplicate history records from previous
+                                # message sent in community-points-user-v1
                                 if event_prediction.result["type"] == "REFUND":
                                     streamer.update_history(
                                         "REFUND",
@@ -410,7 +426,9 @@ class WebSocketsPool:
                                 if Settings.enable_analytics is True:
                                     streamer.persistent_annotations(
                                         "PREDICTION_MADE",
-                                        f"Decision: {event_prediction.bet.decision['choice']} - {event_prediction.title}",
+                                        "Decision:"
+                                        f" {event_prediction.bet.decision['choice']} -"
+                                        f" {event_prediction.title}",
                                     )
                     elif message.topic == "community-points-channel-v1":
                         if message.type == "community-goal-created":
@@ -427,9 +445,11 @@ class WebSocketsPool:
                                 )
                             )
                         elif message.type == "community-goal-deleted":
-                            # TODO Untested, not sure what the message format for this is,
+                            # TODO Untested, not sure what the message format
+                            #      for this is,
                             #      https://github.com/sammwyy/twitch-ps/blob/master/main.js#L417
-                            #      suggests that it should be just the entire, now deleted, goal model
+                            #      suggests that it should be just the entire,
+                            #      now deleted, goal model
                             streamer.delete_community_goal(
                                 message.data["community_goal"]["id"]
                             )
@@ -446,12 +466,15 @@ class WebSocketsPool:
 
                 except Exception:
                     logger.error(
-                        f"Exception raised for topic: {message.topic} and message: {message}",
+                        f"Exception raised for topic: {message.topic} and message:"
+                        f" {message}",
                         exc_info=True,
                     )
 
         elif response.get("type") == "RESPONSE" and response.get("error"):
-            # raise RuntimeError(f"Error while trying to listen for a topic: {response}")
+            # raise RuntimeError(
+            #     f"Error while trying to listen for a topic: {response}"
+            # )
             error_message = response.get("error", "")
             logger.error(f"Error while trying to listen for a topic: {error_message}")
 
@@ -460,18 +483,24 @@ class WebSocketsPool:
                 # Inform the user about the potential outdated cookie file
                 username = ws.twitch.twitch_login.username
                 logger.error(
-                    f'Received the ERR_BADAUTH error, most likely you have an outdated cookie file "cookies\\{username}.pkl". Delete this file and try again.'
+                    "Received the ERR_BADAUTH error, most likely you have an outdated"
+                    f' cookie file "cookies\\{username}.pkl". Delete this file and try'
+                    " again."
                 )
                 # Attempt to delete the outdated cookie file
                 # try:
                 #     cookie_file_path = os.path.join("cookies", f"{username}.pkl")
                 #     if os.path.exists(cookie_file_path):
                 #         os.remove(cookie_file_path)
-                #         logger.info(f"Deleted outdated cookie file for user: {username}")
+                #         logger.info(
+                #             f"Deleted outdated cookie file for user: {username}"
+                #         )
                 #     else:
                 #         logger.warning(f"Cookie file not found for user: {username}")
                 # except Exception as e:
-                #     logger.error(f"Error occurred while deleting cookie file: {str(e)}")
+                #     logger.error(
+                #         f"Error occurred while deleting cookie file: {str(e)}"
+                #     )
 
         elif response.get("type") == "RECONNECT":
             logger.info(f"#{ws.index} - Reconnection required")

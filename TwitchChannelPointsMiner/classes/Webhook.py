@@ -29,9 +29,11 @@ class Webhook(object):
                     requests.post(url=self.endpoint, data=data, timeout=self.timeout)
             except requests.exceptions.Timeout:
                 logger.error(
-                    f"Webhook timeout: {urlparse(self.endpoint).netloc} did not respond within {self.timeout} seconds"
+                    f"Webhook timeout: {urlparse(self.endpoint).netloc} did not respond"
+                    f" within {self.timeout} seconds"
                 )
             except requests.RequestException as e:
                 logger.error(
-                    f"Webhook request failed: {urlparse(self.endpoint).netloc} - {type(e).__name__}"
+                    f"Webhook request failed: {urlparse(self.endpoint).netloc} -"
+                    f" {type(e).__name__}"
                 )

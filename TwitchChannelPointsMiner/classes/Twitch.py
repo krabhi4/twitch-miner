@@ -1,7 +1,8 @@
 # For documentation on Twitch GraphQL API see:
 # https://www.apollographql.com/docs/
 # https://github.com/mauricew/twitch-graphql-api
-# Full list of available methods: https://azr.ivr.fi/schema/query.doc.html (a bit outdated)
+# Full list of available methods (a bit outdated):
+# https://azr.ivr.fi/schema/query.doc.html
 
 
 import copy
@@ -84,7 +85,10 @@ class Twitch(object):
         self.client_session = token_hex(16)
         self.client_version = None
         self.twilight_build_id_pattern = re.compile(
-            r'window\.__twilightBuildID\s*=\s*"([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})"'
+            r'window\.__twilightBuildID\s*=\s*"'
+            r"([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+            r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12})"
+            r'"'
         )
 
     def login(self):
@@ -154,7 +158,10 @@ class Twitch(object):
                 streamer.streamer_url, headers=headers, timeout=20
             )
             response = main_page_request.text
-            regex_settings = "(https://static.twitchcdn.net/config/settings.*?js|https://assets.twitch.tv/config/settings.*?.js)"
+            regex_settings = (
+                "(https://static.twitchcdn.net/config/settings.*?js"
+                "|https://assets.twitch.tv/config/settings.*?.js)"
+            )
             settings_match = re.search(regex_settings, response)
             if settings_match:
                 settings_url = settings_match.group(1)
@@ -308,7 +315,8 @@ class Twitch(object):
                 ),
             )
             logger.debug(
-                f"Data: {json_data}, Status code: {response.status_code}, Content: {response.text}"
+                f"Data: {json_data}, Status code: {response.status_code}, Content:"
+                f" {response.text}"
             )
             return response.json()
         except (
@@ -325,7 +333,8 @@ class Twitch(object):
             return {}
 
     # Request for Integrity Token
-    # Twitch needs Authorization, Client-Id, X-Device-Id to generate JWT which is used for authorize gql requests
+    # Twitch needs Authorization, Client-Id, X-Device-Id to generate JWT
+    # which is used for authorize gql requests
     # Regenerate Integrity Token 5 minutes before expire
     """def post_integrity(self):
         if (
@@ -347,14 +356,17 @@ class Twitch(object):
                 },
             )
             logger.debug(
-                f"Data: [], Status code: {response.status_code}, Content: {response.text}"
+                f"Data: [], Status code: {response.status_code},"
+                f" Content: {response.text}"
             )
             self.integrity = response.json().get("token", None)
             # logger.info(f"integrity: {self.integrity}")
 
             if self.isBadBot(self.integrity) is True:
                 logger.info(
-                    "Uh-oh, Twitch has detected this miner as a \"Bad Bot\". Don't worry.")
+                    'Uh-oh, Twitch has detected this miner as a "Bad Bot".'
+                    " Don't worry."
+                )
 
             self.integrity_expire = response.json().get("expiration", 0)
             # logger.info(f"integrity_expire: {self.integrity_expire}")
@@ -421,13 +433,16 @@ class Twitch(object):
 
                 for index in streamers_index:
                     if (streamers[index].stream.update_elapsed() / 60) > 10:
-                        # Why this user It's currently online but the last updated was more than 10minutes ago?
-                        # Please perform a manually update and check if the user it's online
+                        # Why this user It's currently online but the last updated
+                        # was more than 10minutes ago?
+                        # Please perform a manually update
+                        # and check if the user it's online
                         self.check_streamer_online(streamers[index])
 
                 """
                 Twitch has a limit - you can't watch more than 2 channels at one time.
-                We'll take the first two streamers from the final list as they have the highest priority.
+                We'll take the first two streamers from the final list
+                as they have the highest priority.
                 """
                 max_watch_amount = 2
                 streamers_watching = []
@@ -524,7 +539,8 @@ class Twitch(object):
                             **self.__request_options(),
                         )
                         logger.debug(
-                            f"Send minute watched request for {streamers[index]} - Status code: {response.status_code}"
+                            f"Send minute watched request for {streamers[index]} -"
+                            f" Status code: {response.status_code}"
                         )
                         if response.status_code == 204:
                             streamers[index].stream.update_minute_watched()
@@ -536,7 +552,10 @@ class Twitch(object):
                                         and drop.is_printable is True
                                     ):
                                         drop_messages = [
-                                            f"{streamers[index]} is streaming {streamers[index].stream}",
+                                            (
+                                                f"{streamers[index]} is streaming"
+                                                f" {streamers[index].stream}"
+                                            ),
                                             f"Campaign: {campaign}",
                                             f"Drop: {drop}",
                                             f"{drop.progress_bar()}",
@@ -616,7 +635,8 @@ class Twitch(object):
         if response != {}:
             if "data" not in response or response["data"] is None:
                 logger.warning(
-                    f"Invalid response from load_channel_points_context for {streamer.username}: {response}"
+                    "Invalid response from load_channel_points_context for"
+                    f" {streamer.username}: {response}"
                 )
                 return
             if response["data"].get("community") is None:
@@ -624,7 +644,8 @@ class Twitch(object):
             channel = response["data"]["community"]["channel"]
             if not channel or not (channel.get("self") or {}).get("communityPoints"):
                 logger.warning(
-                    f"Missing channel points data in load_channel_points_context for {streamer.username}"
+                    "Missing channel points data in load_channel_points_context for"
+                    f" {streamer.username}"
                 )
                 return
             community_points = channel["self"]["communityPoints"]
@@ -666,7 +687,8 @@ class Twitch(object):
                     },
                 )
                 logger.info(
-                    f"Skip settings {event.bet.settings.filter_condition}, current value is: {compared_value}",
+                    f"Skip settings {event.bet.settings.filter_condition}, current"
+                    f" value is: {compared_value}",
                     extra={
                         "emoji": ":pushpin:",
                         "event": Events.BET_FILTERS,
@@ -675,8 +697,10 @@ class Twitch(object):
             else:
                 if decision["amount"] >= 10:
                     logger.info(
-                        # f"Place {_millify(decision['amount'])} channel points on: {event.bet.get_outcome(selector_index)}",
-                        f"Place {_millify(decision['amount'])} channel points on: {event.bet.get_outcome(decision['choice'])}",
+                        # f"Place {_millify(decision['amount'])} channel points on:"
+                        # f" {event.bet.get_outcome(selector_index)}",
+                        f"Place {_millify(decision['amount'])} channel points on:"
+                        f" {event.bet.get_outcome(decision['choice'])}",
                         extra={
                             "emoji": ":four_leaf_clover:",
                             "event": Events.BET_GENERAL,
@@ -707,7 +731,9 @@ class Twitch(object):
                         )
                 else:
                     logger.info(
-                        f"Bet won't be placed as the amount {_millify(decision['amount'])} is less than the minimum required 10",
+                        "Bet won't be placed as the amount"
+                        f" {_millify(decision['amount'])} is less than the minimum"
+                        " required 10",
                         extra={
                             "emoji": ":four_leaf_clover:",
                             "event": Events.BET_GENERAL,
@@ -715,7 +741,8 @@ class Twitch(object):
                     )
         else:
             logger.info(
-                f"Oh no! The event is not active anymore! Current status: {event.status}",
+                "Oh no! The event is not active anymore! Current status:"
+                f" {event.status}",
                 extra={
                     "emoji": ":disappointed_relieved:",
                     "event": Events.BET_FAILED,
@@ -828,7 +855,8 @@ class Twitch(object):
             {},
         ]:
             # Iterate all campaigns from dashboard (only active, with working drops)
-            # In this array we have also the campaigns never started from us (not in nventory)
+            # In this array we have also the campaigns never started from us
+            # (not in nventory)
             for i in range(len(campaigns)):
                 campaigns[i].clear_drops()  # Remove all the claimed drops
                 # Iterate all campaigns currently in progress from out inventory
@@ -852,8 +880,10 @@ class Twitch(object):
         json_data["variables"] = {"input": {"dropInstanceID": drop.drop_instance_id}}
         response = self.post_gql_request(json_data)
         try:
-            # response["data"]["claimDropRewards"] can be null and respose["data"]["errors"] != []
-            # or response["data"]["claimDropRewards"]["status"] === DROP_INSTANCE_ALREADY_CLAIMED
+            # response["data"]["claimDropRewards"] can be null
+            # and respose["data"]["errors"] != []
+            # or response["data"]["claimDropRewards"]["status"]
+            # === DROP_INSTANCE_ALREADY_CLAIMED
             if ("claimDropRewards" in response["data"]) and (
                 response["data"]["claimDropRewards"] is None
             ):
@@ -903,18 +933,21 @@ class Twitch(object):
                     #####################################
 
                     # Get full details from current ACTIVE campaigns
-                    # Use dashboard so we can explore new drops not currently active in our Inventory
+                    # Use dashboard so we can explore new drops
+                    # not currently active in our Inventory
                     campaigns_details = self.__get_campaigns_details(
                         self.__get_drops_dashboard(status="ACTIVE")
                     )
                     campaigns = []
 
-                    # Going to clear array and structure. Remove all the timeBasedDrops expired or not started yet
+                    # Going to clear array and structure.
+                    # Remove all the timeBasedDrops expired or not started yet
                     for index in range(0, len(campaigns_details)):
                         if campaigns_details[index] is not None:
                             campaign = Campaign(campaigns_details[index])
                             if campaign.dt_match is True:
-                                # Remove all the drops already claimed or with dt not matching
+                                # Remove all the drops already claimed
+                                # or with dt not matching
                                 campaign.clear_drops()
                                 if campaign.drops != []:
                                     campaigns.append(campaign)
@@ -924,12 +957,16 @@ class Twitch(object):
                 # Divide et impera :)
                 campaigns = self.__sync_campaigns(campaigns)
 
-                # Check if user It's currently streaming the same game present in campaigns_details
+                # Check if user It's currently streaming the same game
+                # present in campaigns_details
                 for streamer in list(streamers):
                     if streamer.drops_condition() is True:
-                        # yes! The streamer[i] have the drops_tags enabled and we It's currently stream a game with campaign active!
-                        # With 'campaigns_ids' we are also sure that this streamer have the campaign active.
-                        # yes! The streamer[index] have the drops_tags enabled and we It's currently stream a game with campaign active!
+                        # yes! The streamer[i] have the drops_tags enabled
+                        # and we It's currently stream a game with campaign active!
+                        # With 'campaigns_ids' we are also sure
+                        # that this streamer have the campaign active.
+                        # yes! The streamer[index] have the drops_tags enabled
+                        # and we It's currently stream a game with campaign active!
                         streamer.stream.campaigns = list(
                             filter(
                                 lambda x: x.drops != []
@@ -970,7 +1007,8 @@ class Twitch(object):
                 return
 
             logger.debug(
-                f"Found {len(user_goal_contributions)} community goals for the current stream"
+                f"Found {len(user_goal_contributions)} community goals for the current"
+                " stream"
             )
 
             for goal_contribution in user_goal_contributions:
@@ -999,7 +1037,10 @@ class Twitch(object):
                         )
                     else:
                         logger.debug(
-                            f"Not contributing to community goal {goal.title}, user channel points {streamer.channel_points}, user stream contribution {user_stream_contribution}, all users total contribution {goal.points_contributed}"
+                            f"Not contributing to community goal {goal.title}, user"
+                            f" channel points {streamer.channel_points}, user stream"
+                            f" contribution {user_stream_contribution}, all users total"
+                            f" contribution {goal.points_contributed}"
                         )
 
     def contribute_to_community_goal(self, streamer, goal_id, title, amount):
@@ -1027,7 +1068,8 @@ class Twitch(object):
         ).get("error")
         if error:
             logger.error(
-                f"Unable to contribute channel points to community goal '{title}', reason '{error}'"
+                f"Unable to contribute channel points to community goal '{title}',"
+                f" reason '{error}'"
             )
         else:
             logger.info(

@@ -65,7 +65,13 @@ class StreamerSettings(object):
             self.chat = ChatPresence.ONLINE
 
     def __repr__(self):
-        return f"StreamerSettings(make_predictions={self.make_predictions}, follow_raid={self.follow_raid}, claim_drops={self.claim_drops}, claim_moments={self.claim_moments}, watch_streak={self.watch_streak}, community_goals={self.community_goals}, bet={self.bet}, chat={self.chat})"
+        return (
+            f"StreamerSettings(make_predictions={self.make_predictions},"
+            f" follow_raid={self.follow_raid}, claim_drops={self.claim_drops},"
+            f" claim_moments={self.claim_moments}, watch_streak={self.watch_streak},"
+            f" community_goals={self.community_goals}, bet={self.bet},"
+            f" chat={self.chat})"
+        )
 
 
 class Streamer(object):
@@ -117,7 +123,10 @@ class Streamer(object):
         self.mutex = Lock()
 
     def __repr__(self):
-        return f"Streamer(username={self.username}, channel_id={self.channel_id}, channel_points={_millify(self.channel_points)})"
+        return (
+            f"Streamer(username={self.username}, channel_id={self.channel_id},"
+            f" channel_points={_millify(self.channel_points)})"
+        )
 
     def __str__(self):
         return (
@@ -161,7 +170,8 @@ class Streamer(object):
     def print_history(self):
         return "; ".join(
             [
-                f"{key} ({self.history[key]['counter']} times, {_millify(self.history[key]['amount'])} gained)"
+                f"{key} ({self.history[key]['counter']} times,"
+                f" {_millify(self.history[key]['amount'])} gained)"
                 for key in sorted(self.history)
                 if self.history[key]["counter"] != 0
             ]
