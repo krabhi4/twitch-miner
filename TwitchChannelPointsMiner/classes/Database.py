@@ -123,7 +123,8 @@ class DatabaseManager:
 
         if dtype in ("postgresql", "postgres"):
             raise ValueError(
-                "PostgreSQL requested via DB_TYPE/DATABASE_TYPE, but DATABASE_URL/DB_URL is not set."
+                "PostgreSQL requested via DB_TYPE/DATABASE_TYPE, but"
+                " DATABASE_URL/DB_URL is not set."
             )
 
         path = (
@@ -164,7 +165,8 @@ class DatabaseManager:
                     self.save_config(cfg_user, cfg_data)
                     config_file.unlink(missing_ok=True)
                     logger.info(
-                        f"Migrated config.json for {cfg_user} to database and deleted file"
+                        f"Migrated config.json for {cfg_user} to database and deleted"
+                        " file"
                     )
                 except Exception as e:
                     logger.error(f"Failed to migrate {config_file}: {e}")
@@ -238,8 +240,9 @@ class DatabaseManager:
                 (d / f"{f.name}.temp").unlink(missing_ok=True)
                 (d / f"{f.name}.tmp").unlink(missing_ok=True)
                 logger.info(
-                    f"Migrated {len(series_list)} points and {len(annotations_list)} annotations "
-                    f"for streamer '{streamer_name}' ({target_user}) to database and deleted {f.name}"
+                    f"Migrated {len(series_list)} points and {len(annotations_list)}"
+                    f" annotations for streamer '{streamer_name}' ({target_user}) to"
+                    f" database and deleted {f.name}"
                 )
 
     def save_series(self, username, streamer, x, y, z):

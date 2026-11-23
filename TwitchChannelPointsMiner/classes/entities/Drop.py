@@ -98,11 +98,20 @@ class Drop(object):
         self.percentage_progress = updated_percentage
 
     def __repr__(self):
-        return f"Drop(id={self.id}, name={self.name}, benefit={self.benefit}, minutes_required={self.minutes_required}, has_preconditions_met={self.has_preconditions_met}, current_minutes_watched={self.current_minutes_watched}, percentage_progress={self.percentage_progress}%, drop_instance_id={self.drop_instance_id}, is_claimed={self.is_claimed})"
+        return (
+            f"Drop(id={self.id}, name={self.name}, benefit={self.benefit},"
+            f" minutes_required={self.minutes_required},"
+            f" has_preconditions_met={self.has_preconditions_met},"
+            f" current_minutes_watched={self.current_minutes_watched},"
+            f" percentage_progress={self.percentage_progress}%,"
+            f" drop_instance_id={self.drop_instance_id}, is_claimed={self.is_claimed})"
+        )
 
     def __str__(self):
         return (
-            f"{self.name} ({self.benefit}) {self.current_minutes_watched}/{self.minutes_required} ({self.percentage_progress}%)"
+            f"{self.name} ({self.benefit})"
+            f" {self.current_minutes_watched}/{self.minutes_required}"
+            f" ({self.percentage_progress}%)"
             if getattr(Settings.logger, "less", False)
             else self.__repr__()
         )
@@ -111,7 +120,10 @@ class Drop(object):
         pct = max(0, min(100, int(self.percentage_progress)))
         progress = pct // 2
         remaining = 50 - progress
-        return f"|{'█' * progress}{' ' * remaining}|\t{self.percentage_progress}% [{self.current_minutes_watched}/{self.minutes_required}]"
+        return (
+            f"|{'█' * progress}{' ' * remaining}|\t{self.percentage_progress}%"
+            f" [{self.current_minutes_watched}/{self.minutes_required}]"
+        )
 
     def __eq__(self, other):
         if isinstance(other, Drop):

@@ -871,7 +871,7 @@ class AnalyticsServer(Thread):
                 except StreamerDoesNotExistException:
                     return Response(
                         json.dumps(
-                            {"error": (f"Streamer '{name}' does not exist on Twitch")}
+                            {"error": f"Streamer '{name}' does not exist on Twitch"}
                         ),
                         status=404,
                         mimetype="application/json",

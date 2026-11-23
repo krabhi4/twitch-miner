@@ -98,7 +98,8 @@ class TwitchChannelPointsMiner:
             logger.error("No username, exiting...")
             sys.exit(0)
 
-        # This disables certificate verification and allows the connection to proceed, but also makes it vulnerable to man-in-the-middle (MITM) attacks.
+        # This disables certificate verification and allows the connection to proceed,
+        # but also makes it vulnerable to man-in-the-middle (MITM) attacks.
         Settings.disable_ssl_cert_verification = disable_ssl_cert_verification
 
         Settings.disable_at_in_nickname = disable_at_in_nickname
@@ -382,7 +383,8 @@ class TwitchChannelPointsMiner:
             # Populate the streamers with default values.
             # 1. Load channel points and auto-claim bonus
             # 2. Check if streamers are online
-            # 3. DEACTIVATED: Check if the user is a moderator. (was used before the 5th of April 2021 to deactivate predictions)
+            # 3. DEACTIVATED: Check if the user is a moderator.
+            #    (was used before the 5th of April 2021 to deactivate predictions)
             for streamer in self.streamers:
                 time.sleep(random.uniform(0.3, 0.7))
                 try:
@@ -441,7 +443,8 @@ class TwitchChannelPointsMiner:
                 )
             )
 
-            # Going to subscribe to predictions-user-v1. Get update when we place a new prediction (confirm)
+            # Going to subscribe to predictions-user-v1.
+            # Get update when we place a new prediction (confirm)
             self.ws_pool.submit(
                 PubsubTopic(
                     "predictions-user-v1",
@@ -456,7 +459,8 @@ class TwitchChannelPointsMiner:
             while self.running:
                 time.sleep(random.uniform(20, 60))
                 # Do an external control for WebSocket. Check if the thread is running
-                # Check if is not None because maybe we have already created a new connection on array+1 and now index is None
+                # Check if is not None because maybe we have already created a new
+                # connection on array+1 and now index is None
                 ws_snapshot = list(self.ws_pool.ws) if self.ws_pool else []
                 for index, ws in enumerate(ws_snapshot):
                     if (
@@ -466,7 +470,8 @@ class TwitchChannelPointsMiner:
                         and internet_connection_available() is True
                     ):
                         logger.info(
-                            f"#{index} - The last PING was sent more than 10 minutes ago. Reconnecting to the WebSocket..."
+                            f"#{index} - The last PING was sent more than 10 minutes"
+                            " ago. Reconnecting to the WebSocket..."
                         )
                         WebSocketsPool.handle_reconnection(ws)
 
@@ -481,7 +486,8 @@ class TwitchChannelPointsMiner:
                                     )
                             except StreamerDoesNotExistException:
                                 logger.info(
-                                    f"Streamer {streamer.username} does not exist, removing from streamers list",
+                                    f"Streamer {streamer.username} does not exist,"
+                                    " removing from streamers list",
                                     extra={"emoji": ":cry:"},
                                 )
                                 with self.streamers_lock:
@@ -489,7 +495,8 @@ class TwitchChannelPointsMiner:
                                         self.streamers.remove(streamer)
                             except Exception:
                                 logger.error(
-                                    f"Failed to refresh channel points for {streamer.username}",
+                                    "Failed to refresh channel points for"
+                                    f" {streamer.username}",
                                     exc_info=True,
                                 )
 
@@ -638,9 +645,14 @@ class TwitchChannelPointsMiner:
                 streamer_highlight = Fore.YELLOW
 
                 streamer_gain = (
-                    f"{streamer_highlight}{streamer}{Fore.RESET}, Total Points Gained: {_millify(gained)}"
+                    f"{streamer_highlight}{streamer}{Fore.RESET}, Total Points Gained:"
+                    f" {_millify(gained)}"
                     if Settings.logger.less
-                    else f"{streamer_highlight}{repr(streamer)}{Fore.RESET}, Total Points Gained (after farming - before farming): {_millify(gained)}"
+                    else (
+                        f"{streamer_highlight}{repr(streamer)}{Fore.RESET}, Total"
+                        " Points Gained (after farming - before farming):"
+                        f" {_millify(gained)}"
+                    )
                 )
 
                 indent = " " * 25

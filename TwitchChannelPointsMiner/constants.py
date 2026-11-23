@@ -16,17 +16,35 @@ CLIENT_VERSION = "ef928475-9403-42f2-8a34-55784bd08e16"  # Browser
 
 USER_AGENTS = {
     "Windows": {
-        "CHROME": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
-        "FIREFOX": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:157.0) Gecko/20100101 Firefox/157.0",
+        "CHROME": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like"
+            " Gecko) Chrome/155.0.0.0 Safari/537.36"
+        ),
+        "FIREFOX": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:157.0) Gecko/20100101"
+            " Firefox/157.0"
+        ),
     },
     "Linux": {
-        "CHROME": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
-        "FIREFOX": "Mozilla/5.0 (X11; Linux x86_64; rv:157.0) Gecko/20100101 Firefox/157.0",
+        "CHROME": (
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko)"
+            " Chrome/155.0.0.0 Safari/537.36"
+        ),
+        "FIREFOX": (
+            "Mozilla/5.0 (X11; Linux x86_64; rv:157.0) Gecko/20100101 Firefox/157.0"
+        ),
     },
     "Android": {
-        # "App": "Dalvik/2.1.0 (Linux; U; Android 7.1.2; SM-G975N Build/N2G48C) tv.twitch.android.app/13.4.1/1304010"
-        "App": "Dalvik/2.1.0 (Linux; U; Android 7.1.2; SM-G977N Build/LMY48Z) tv.twitch.android.app/14.3.2/1403020",
-        "TV": "Mozilla/5.0 (Linux; Android 7.1; Smart Box C1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+        # "App": "Dalvik/2.1.0 (Linux; U; Android 7.1.2; SM-G975N Build/N2G48C)"
+        #        " tv.twitch.android.app/13.4.1/1304010"
+        "App": (
+            "Dalvik/2.1.0 (Linux; U; Android 7.1.2; SM-G977N Build/LMY48Z)"
+            " tv.twitch.android.app/14.3.2/1403020"
+        ),
+        "TV": (
+            "Mozilla/5.0 (Linux; Android 7.1; Smart Box C1) AppleWebKit/537.36 (KHTML,"
+            " like Gecko) Chrome/155.0.0.0 Safari/537.36"
+        ),
     },
 }
 
@@ -42,7 +60,9 @@ class GQLOperations:
         "extensions": {
             "persistedQuery": {
                 "version": 1,
-                "sha256Hash": "04e46329a6786ff3a81c01c50bfa5d725902507a0deb83b0edbf7abe7a3716ea",
+                "sha256Hash": (
+                    "04e46329a6786ff3a81c01c50bfa5d725902507a0deb83b0edbf7abe7a3716ea"
+                ),
             }
         },
     }
@@ -51,7 +71,9 @@ class GQLOperations:
         "extensions": {
             "persistedQuery": {
                 "version": 1,
-                "sha256Hash": "ed230aa1e33e07eebb8928504583da78a5173989fadfb1ac94be06a04f3cdbe9",
+                "sha256Hash": (
+                    "ed230aa1e33e07eebb8928504583da78a5173989fadfb1ac94be06a04f3cdbe9"
+                ),
             }
         },
     }
@@ -60,7 +82,9 @@ class GQLOperations:
         "extensions": {
             "persistedQuery": {
                 "version": 1,
-                "sha256Hash": "198492e0857f6aedead9665c81c5a06d67b25b58034649687124083ff288597d",
+                "sha256Hash": (
+                    "198492e0857f6aedead9665c81c5a06d67b25b58034649687124083ff288597d"
+                ),
             }
         },
     }
@@ -69,7 +93,9 @@ class GQLOperations:
         "extensions": {
             "persistedQuery": {
                 "version": 1,
-                "sha256Hash": "46aaeebe02c99afdf4fc97c7c0cba964124bf6b0af229395f1f6d1feed05b3d0",
+                "sha256Hash": (
+                    "46aaeebe02c99afdf4fc97c7c0cba964124bf6b0af229395f1f6d1feed05b3d0"
+                ),
             }
         },
     }
@@ -78,7 +104,9 @@ class GQLOperations:
         "extensions": {
             "persistedQuery": {
                 "version": 1,
-                "sha256Hash": "e2d67415aead910f7f9ceb45a77b750a1e1d9622c936d832328a0689e054db62",
+                "sha256Hash": (
+                    "e2d67415aead910f7f9ceb45a77b750a1e1d9622c936d832328a0689e054db62"
+                ),
             }
         },
     }
@@ -87,7 +115,9 @@ class GQLOperations:
         "extensions": {
             "persistedQuery": {
                 "version": 1,
-                "sha256Hash": "a455deea71bdc9015b78eb49f4acfbce8baa7ccbedd28e549bb025bd0f751930",
+                "sha256Hash": (
+                    "a455deea71bdc9015b78eb49f4acfbce8baa7ccbedd28e549bb025bd0f751930"
+                ),
             }
         },
     }
@@ -96,7 +126,9 @@ class GQLOperations:
         "extensions": {
             "persistedQuery": {
                 "version": 1,
-                "sha256Hash": "33884dcfeab64eb44c2d61255145643cf69ea993e0c6c2ecb0fa46238586a111",
+                "sha256Hash": (
+                    "33884dcfeab64eb44c2d61255145643cf69ea993e0c6c2ecb0fa46238586a111"
+                ),
             }
         },
     }
@@ -105,7 +137,9 @@ class GQLOperations:
         "extensions": {
             "persistedQuery": {
                 "version": 1,
-                "sha256Hash": "c6a332a86d1087fbbb1a8623aa01bd1313d2386e7c63be60fdb2d1901f01a4ae",
+                "sha256Hash": (
+                    "c6a332a86d1087fbbb1a8623aa01bd1313d2386e7c63be60fdb2d1901f01a4ae"
+                ),
             }
         },
     }
@@ -114,7 +148,9 @@ class GQLOperations:
         "extensions": {
             "persistedQuery": {
                 "version": 1,
-                "sha256Hash": "df5d55b6401389afb12d3017c9b2cf1237164220c8ef4ed754eae8188068a807",
+                "sha256Hash": (
+                    "df5d55b6401389afb12d3017c9b2cf1237164220c8ef4ed754eae8188068a807"
+                ),
             }
         },
     }
@@ -125,7 +161,9 @@ class GQLOperations:
         "extensions": {
             "persistedQuery": {
                 "version": 1,
-                "sha256Hash": "d86775d0ef16a63a33ad52e80eaff963b2d5b72fada7c991504a57496e1d8e4b",
+                "sha256Hash": (
+                    "d86775d0ef16a63a33ad52e80eaff963b2d5b72fada7c991504a57496e1d8e4b"
+                ),
             }
         },
     }
@@ -134,7 +172,9 @@ class GQLOperations:
         "extensions": {
             "persistedQuery": {
                 "version": 1,
-                "sha256Hash": "b44682ecc88358817009f20e69d75081b1e58825bb40aa53d5dbadcc17c881d8",
+                "sha256Hash": (
+                    "b44682ecc88358817009f20e69d75081b1e58825bb40aa53d5dbadcc17c881d8"
+                ),
             }
         },
     }
@@ -145,7 +185,9 @@ class GQLOperations:
         "extensions": {
             "persistedQuery": {
                 "version": 1,
-                "sha256Hash": "5a4da2ab3d5b47c9f9ce864e727b2cb346af1e3ea8b897fe8f704a97ff017619",
+                "sha256Hash": (
+                    "5a4da2ab3d5b47c9f9ce864e727b2cb346af1e3ea8b897fe8f704a97ff017619"
+                ),
             }
         },
     }
@@ -154,7 +196,9 @@ class GQLOperations:
         "extensions": {
             "persistedQuery": {
                 "version": 1,
-                "sha256Hash": "039277bf98f3130929262cc7c6efd9c141ca3749cb6dca442fc8ead9a53f77c1",
+                "sha256Hash": (
+                    "039277bf98f3130929262cc7c6efd9c141ca3749cb6dca442fc8ead9a53f77c1"
+                ),
             }
         },
     }
@@ -163,7 +207,9 @@ class GQLOperations:
         "extensions": {
             "persistedQuery": {
                 "version": 1,
-                "sha256Hash": "9a62a09bce5b53e26e64a671e530bc599cb6aab1e5ba3cbd5d85966d3940716f",
+                "sha256Hash": (
+                    "9a62a09bce5b53e26e64a671e530bc599cb6aab1e5ba3cbd5d85966d3940716f"
+                ),
             }
         },
     }
@@ -173,7 +219,9 @@ class GQLOperations:
         "extensions": {
             "persistedQuery": {
                 "version": 1,
-                "sha256Hash": "94e82a7b1e3c21e186daa73ee2afc4b8f23bade1fbbff6fe8ac133f50a2f58ca",
+                "sha256Hash": (
+                    "94e82a7b1e3c21e186daa73ee2afc4b8f23bade1fbbff6fe8ac133f50a2f58ca"
+                ),
             }
         },
     }
@@ -191,7 +239,9 @@ class GQLOperations:
         "extensions": {
             "persistedQuery": {
                 "version": 1,
-                "sha256Hash": "9fbdfb00156f754c26bde81eb47436dee146655c92682328457037da1a48ed39",
+                "sha256Hash": (
+                    "9fbdfb00156f754c26bde81eb47436dee146655c92682328457037da1a48ed39"
+                ),
             }
         },
     }
@@ -201,7 +251,9 @@ class GQLOperations:
         "extensions": {
             "persistedQuery": {
                 "version": 1,
-                "sha256Hash": "eecf815273d3d949e5cf0085cc5084cd8a1b5b7b6f7990cf43cb0beadf546907",
+                "sha256Hash": (
+                    "eecf815273d3d949e5cf0085cc5084cd8a1b5b7b6f7990cf43cb0beadf546907"
+                ),
             }
         },
     }
@@ -210,7 +262,9 @@ class GQLOperations:
         "extensions": {
             "persistedQuery": {
                 "version": 1,
-                "sha256Hash": "23ff2c2d60708379131178742327ead913b93b1bd6f665517a6d9085b73f661f",
+                "sha256Hash": (
+                    "23ff2c2d60708379131178742327ead913b93b1bd6f665517a6d9085b73f661f"
+                ),
             }
         },
     }
@@ -219,7 +273,9 @@ class GQLOperations:
         "extensions": {
             "persistedQuery": {
                 "version": 1,
-                "sha256Hash": "5774f0ea5d89587d73021a2e03c3c44777d903840c608754a1be519f51e37bb6",
+                "sha256Hash": (
+                    "5774f0ea5d89587d73021a2e03c3c44777d903840c608754a1be519f51e37bb6"
+                ),
             }
         },
     }

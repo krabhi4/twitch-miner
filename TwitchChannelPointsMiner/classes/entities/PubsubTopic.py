@@ -17,7 +17,10 @@ class PubsubTopic(object):
             return f"{self.topic}.{channel_id}"
 
     def __repr__(self):
-        return f"PubsubTopic(topic={self.topic}, user_id={self.user_id}, streamer={self.streamer})"
+        return (
+            f"PubsubTopic(topic={self.topic}, user_id={self.user_id},"
+            f" streamer={self.streamer})"
+        )
 
     def __eq__(self, other):
         if isinstance(other, PubsubTopic):

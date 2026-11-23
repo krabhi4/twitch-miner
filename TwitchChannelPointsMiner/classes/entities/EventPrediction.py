@@ -44,7 +44,10 @@ class EventPrediction(object):
         self.bet = Bet(outcomes, streamer.settings.bet)
 
     def __repr__(self):
-        return f"EventPrediction(event_id={self.event_id}, streamer={self.streamer}, title={self.title})"
+        return (
+            f"EventPrediction(event_id={self.event_id}, streamer={self.streamer},"
+            f" title={self.title})"
+        )
 
     def __str__(self):
         return (
@@ -89,7 +92,10 @@ class EventPrediction(object):
         )
 
         self.result = {
-            "string": f"{result_type}, {action}: {points['prefix']}{_millify(points['gained'])}",
+            "string": (
+                f"{result_type}, {action}:"
+                f" {points['prefix']}{_millify(points['gained'])}"
+            ),
             "type": result_type,
             "gained": points["gained"],
         }

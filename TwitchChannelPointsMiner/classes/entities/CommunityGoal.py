@@ -33,7 +33,13 @@ class CommunityGoal(object):
         return False
 
     def __repr__(self) -> str:
-        return f"CommunityGoal(goal_id: {self.goal_id}, title: {self.title}, is_in_stock: {self.is_in_stock}, points_contributed: {self.points_contributed}, amount_needed: {self.amount_needed}, per_stream_user_maximum_contribution: {self.per_stream_user_maximum_contribution}, status: {self.status})"
+        return (
+            f"CommunityGoal(goal_id: {self.goal_id}, title: {self.title}, is_in_stock:"
+            f" {self.is_in_stock}, points_contributed: {self.points_contributed},"
+            f" amount_needed: {self.amount_needed},"
+            " per_stream_user_maximum_contribution:"
+            f" {self.per_stream_user_maximum_contribution}, status: {self.status})"
+        )
 
     def amount_left(self):
         needed = (

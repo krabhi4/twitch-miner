@@ -73,7 +73,10 @@ class FilterCondition(object):
         self.value = value
 
     def __repr__(self):
-        return f"FilterCondition(by={self.by.upper()}, where={self.where}, value={self.value})"
+        return (
+            f"FilterCondition(by={self.by.upper()}, where={self.where},"
+            f" value={self.value})"
+        )
 
 
 class BetSettings(object):
@@ -130,7 +133,11 @@ class BetSettings(object):
         )
 
     def __repr__(self):
-        return f"BetSettings(strategy={self.strategy}, percentage={self.percentage}, percentage_gap={self.percentage_gap}, max_points={self.max_points}, minimum_points={self.minimum_points}, stealth_mode={self.stealth_mode})"
+        return (
+            f"BetSettings(strategy={self.strategy}, percentage={self.percentage},"
+            f" percentage_gap={self.percentage_gap}, max_points={self.max_points},"
+            f" minimum_points={self.minimum_points}, stealth_mode={self.stealth_mode})"
+        )
 
 
 class Bet(object):
@@ -193,7 +200,11 @@ class Bet(object):
             f"Outcome {chr(65 + i)}({self.get_outcome(i)})"
             for i in range(len(self.outcomes))
         )
-        return f"Bet(total_users={millify(self.total_users)}, total_points={millify(self.total_points)}, decision={self.decision})\n\t\t{outcomes_str}"
+        return (
+            f"Bet(total_users={millify(self.total_users)},"
+            f" total_points={millify(self.total_points)},"
+            f" decision={self.decision})\n\t\t{outcomes_str}"
+        )
 
     def get_decision(self, parsed=False):
         if not self.decision or self.decision.get("choice") is None:
@@ -206,7 +217,13 @@ class Bet(object):
 
     @staticmethod
     def __parse_outcome(outcome):
-        return f"{outcome['title']} ({outcome['color']}), Points: {millify(outcome[OutcomeKeys.TOTAL_POINTS])}, Users: {millify(outcome[OutcomeKeys.TOTAL_USERS])} ({outcome[OutcomeKeys.PERCENTAGE_USERS]}%), Odds: {outcome[OutcomeKeys.ODDS]} ({outcome[OutcomeKeys.ODDS_PERCENTAGE]}%)"
+        return (
+            f"{outcome['title']} ({outcome['color']}), Points:"
+            f" {millify(outcome[OutcomeKeys.TOTAL_POINTS])}, Users:"
+            f" {millify(outcome[OutcomeKeys.TOTAL_USERS])}"
+            f" ({outcome[OutcomeKeys.PERCENTAGE_USERS]}%), Odds:"
+            f" {outcome[OutcomeKeys.ODDS]} ({outcome[OutcomeKeys.ODDS_PERCENTAGE]}%)"
+        )
 
     def get_outcome(self, index):
         if 0 <= index < len(self.outcomes):

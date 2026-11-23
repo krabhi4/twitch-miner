@@ -39,17 +39,21 @@ class Campaign(object):
             else False
         )
 
-        self.drops = [Drop(x) for x in (dict.get("timeBasedDrops") or [])]
+        self.drops = [Drop(x) for x in dict.get("timeBasedDrops") or []]
 
     def __repr__(self):
-        return f"Campaign(id={self.id}, name={self.name}, game={self.game}, in_inventory={self.in_inventory})"
+        return (
+            f"Campaign(id={self.id}, name={self.name}, game={self.game},"
+            f" in_inventory={self.in_inventory})"
+        )
 
     def __str__(self):
         game_name = (
             self.game.get("displayName", "") if isinstance(self.game, dict) else ""
         )
         return (
-            f"{self.name}, Game: {game_name} - Drops: {len(self.drops)} pcs. - In inventory: {self.in_inventory}"
+            f"{self.name}, Game: {game_name} - Drops: {len(self.drops)} pcs. - In"
+            f" inventory: {self.in_inventory}"
             if getattr(Settings.logger, "less", False)
             else self.__repr__()
         )

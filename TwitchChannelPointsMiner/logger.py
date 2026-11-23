@@ -26,7 +26,8 @@ from TwitchChannelPointsMiner.utils import remove_emoji
 # Fore: BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE, RESET.
 class ColorPalette(object):
     def __init__(self, **kwargs):
-        # Init with default values RESET for all and GREEN and RED only for WIN and LOSE bet
+        # Init with default values RESET for all
+        # and GREEN and RED only for WIN and LOSE bet
         # Then set args from kwargs
         for k in Events:
             setattr(self, str(k), Fore.RESET)
@@ -246,8 +247,8 @@ class GlobalFormatter(logging.Formatter):
         if self.settings.discord is not None and not skip_discord:
             for client in self.settings.discord:
                 if (
-                    client.webhook_api
-                    != "https://discord.com/api/webhooks/0123456789/0a1B2c3D4e5F6g7H8i9J"
+                    client.webhook_api != "https://discord.com/api/webhooks/0123456789/"
+                    "0a1B2c3D4e5F6g7H8i9J"
                 ):
                     self._safe_send(client, record.msg, record.event)
 
@@ -352,7 +353,10 @@ def configure_loggers(username, settings):
 
         file_handler.setFormatter(
             FileFormatter(
-                fmt="%(asctime)s - %(levelname)s - %(name)s - [%(funcName)s]: %(message)s",
+                fmt=(
+                    "%(asctime)s - %(levelname)s - %(name)s - [%(funcName)s]:"
+                    " %(message)s"
+                ),
                 datefmt="%d/%m/%y %H:%M:%S",
                 settings=settings,
             )
